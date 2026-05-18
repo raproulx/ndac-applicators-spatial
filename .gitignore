@@ -47,4 +47,9 @@ po/*~
 
 # RStudio Connect folder
 rsconnect/
+
+# Posit Assistant AI
 .positai
+
+# Test Data
+testdata
