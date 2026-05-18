@@ -1,0 +1,12 @@
+name: shinyapp
+title:
+username: robproulxndsu
+account: robproulxndsu
+server: shinyapps.io
+hostUrl: https://api.shinyapps.io/v1
+appId: 16674118
+bundleId: 11599194
+url: https://robproulxndsu.shinyapps.io/shinyapp/
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
