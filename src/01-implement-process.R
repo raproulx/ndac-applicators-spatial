@@ -32,10 +32,7 @@ title_ndac <- str_c(
       mdy() |>
       format("%B %d, %Y")
   ) |>
-  str_replace(" :", "<br>") |>
-  str_c(
-    "<br><span style=font-size: 10px;>*locations are approximate to maintain privacy*</span>"
-  )
+  str_replace(" : ", "<br>")
 
 # read existing georeferenced directory -----------------------------------
 dat_geo_saved <- read_parquet("results/ndac-directory-georeferenced.parquet")
@@ -119,7 +116,7 @@ if (nrow(dat_new) > 0) {
   tag.map.title <- tags$style(HTML(
     "
   .leaflet-control.map-title { 
-    transform: translate(-50%,0%);
+    transform: translate(-50%,-95%);
     position: fixed !important;
     left: 50%;
     text-align: center;
@@ -129,24 +126,32 @@ if (nrow(dat_new) > 0) {
     background: rgba(255,255,255,0.75);
     font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
     font-weight: bold;
-    font-size: 14px;
+    font-size: 11px;
   }
 "
   ))
 
   title <- tags$div(
     tag.map.title,
-    HTML(title_ndac)
+    HTML("*locations are approximate to maintain privacy*")
   )
 
   m <- leaflet(
     data = ndac_entries,
+    width = "100%",
+    height = "100vh",
     options = leafletOptions(
       minZoom = 5,
-      maxZoom = 10
+      maxZoom = 11
     )
   ) |>
-    addTiles() |>
+    addTiles(
+      options = tileOptions(
+        tileSize = 256,
+        zoomOffset = 0,
+        detectRetina = TRUE
+      )
+    ) |>
     addCircleMarkers(
       data = ndac_entries,
       group = ~`TYPE OF LICENSE`,
@@ -167,7 +172,8 @@ if (nrow(dat_new) > 0) {
     addLegend(
       position = "topright",
       pal = pal,
-      values = ~`TYPE OF LICENSE`
+      values = ~`TYPE OF LICENSE`,
+      title = title_ndac
     ) |>
     addLayersControl(
       overlayGroups = c("Manned", "Unmanned"),
@@ -195,9 +201,22 @@ if (nrow(dat_new) > 0) {
         updateWhenIdle = TRUE
       )
     ) |>
-    addControl(title, position = "topright", className = "map-title")
+    addControl(title, position = "bottomright", className = "map-title")
   m
 
   # write Leaflet map to HTML -----------------------------------------------
-  saveWidget(m, file = "index.html")
+  saveWidget(
+    prependContent(
+      m,
+      tags$head(tags$link(
+        rel = "stylesheet",
+        href = "style.css"
+      )),
+      tags$head(tags$meta(
+        name = "viewport",
+        content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+      ))
+    ),
+    file = "index.html"
+  )
 }
