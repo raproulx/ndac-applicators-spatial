@@ -8,6 +8,7 @@ library(pushoverr)
 library(leaflet)
 library(leaflet.extras)
 library(htmlwidgets)
+library(htmltools)
 
 conflicted::conflicts_prefer(dplyr::filter)
 
@@ -107,7 +108,36 @@ ndac_entries <- dat_leaflet |>
 
 pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
 
-m <- leaflet(ndac_entries) |>
+tag.map.title <- tags$style(HTML(
+  "
+  .leaflet-control.map-title { 
+    transform: translate(-50%,0%);
+    position: fixed !important;
+    left: 50%;
+    text-align: center;
+    padding-left: 10px; 
+    padding-right: 10px;
+    color: #555;
+    background: rgba(255,255,255,0.75);
+    font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
+    font-weight: bold;
+    font-size: 14px;
+  }
+"
+))
+
+title <- tags$div(
+  tag.map.title,
+  HTML(title_ndac)
+)
+
+m <- leaflet(
+  data = ndac_entries,
+  options = leafletOptions(
+    minZoom = 5,
+    maxZoom = 10
+  )
+) |>
   addTiles() |>
   addCircleMarkers(
     data = ndac_entries,
@@ -143,6 +173,8 @@ m <- leaflet(ndac_entries) |>
       )
     )
   ))
+  ) |>
+  addControl(title, position = "topright", className = "map-title")
 m
 
 # write Leaflet map to HTML -----------------------------------------------
