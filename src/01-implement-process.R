@@ -47,9 +47,15 @@ if (nrow(dat_geo_errors) > 0) {
   )
 }
 
-# append new geocoded entries to parquet ----------------------------------
-append_parquet(
-  dat_geo_new |> filter_out(is.na(lat) | is.na(long)),
+# write all geocoded entries to parquet ----------------------------------
+write_parquet(
+  dat_geo_saved |>
+    right_join(dat_ndac) |>
+    bind_rows(
+      dat_geo_new |>
+        filter_out(is.na(lat) | is.na(long))
+    ) |>
+    arrange(`BUSINESS NAME`),
   "results/ndac-directory-georeferenced.parquet"
 )
 
