@@ -47,8 +47,10 @@ dat_new <- dat_ndac |>
       select(`BUSINESS NAME`, `OWNER/OPERATOR`)
   )
 
-dat_geo_new <- dat_new |>
-  geocode(city = CITY, state = STATE, method = "osm")
+if (nrow(dat_new) > 0) {
+  dat_geo_new <- dat_new |>
+    geocode(city = CITY, state = STATE, method = "osm")
+}
 
 # identify and alert georeferencing errors --------------------------------
 dat_geo_errors <- dat_geo_new |>
