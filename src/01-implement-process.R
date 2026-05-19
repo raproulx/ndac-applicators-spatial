@@ -113,28 +113,28 @@ if (nrow(dat_new) > 0) {
 
   pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
 
-  tag.map.title <- tags$style(HTML(
-    "
-  .leaflet-control.map-title { 
-    transform: translate(-50%,-95%);
-    position: fixed !important;
-    left: 50%;
-    text-align: center;
-    padding-left: 10px; 
-    padding-right: 10px;
-    color: #555;
-    background: rgba(255,255,255,0.75);
-    font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
-    font-weight: bold;
-    font-size: 11px;
-  }
-"
-  ))
-
-  title <- tags$div(
-    tag.map.title,
-    HTML("*locations are approximate to maintain privacy*")
-  )
+  #   tag.map.title <- tags$style(HTML(
+  #     "
+  #   .leaflet-control.map-title {
+  #     transform: translate(-50%,-95%);
+  #     position: fixed !important;
+  #     left: 50%;
+  #     text-align: center;
+  #     padding-left: 10px;
+  #     padding-right: 10px;
+  #     color: #555;
+  #     background: rgba(255,255,255,0.75);
+  #     font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
+  #     font-weight: bold;
+  #     font-size: 11px;
+  #   }
+  # "
+  #   ))
+  #
+  #   title <- tags$div(
+  #     tag.map.title,
+  #     HTML("*locations are approximate to maintain privacy*")
+  #   )
 
   m <- leaflet(
     data = ndac_entries,
@@ -146,11 +146,8 @@ if (nrow(dat_new) > 0) {
     )
   ) |>
     addTiles(
-      options = tileOptions(
-        tileSize = 512,
-        zoomOffset = -1,
-        detectRetina = TRUE
-      )
+      urlTemplate = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
     ) |>
     addCircleMarkers(
       data = ndac_entries,
@@ -200,23 +197,83 @@ if (nrow(dat_new) > 0) {
         imperial = TRUE,
         updateWhenIdle = TRUE
       )
-    ) |>
-    addControl(title, position = "bottomright", className = "map-title")
+    ) #|>
+  # addControl(title, position = "bottomright", className = "map-title")
+
   m
 
   # write Leaflet map to HTML -----------------------------------------------
   saveWidget(
     prependContent(
       m,
+      tags$style(HTML(
+        "
+      .map-caption {
+        position: fixed;
+        bottom: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        background: rgba(255,255,255,0.75);
+        color: #555;
+        font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
+        font-weight: bold;
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 3px;
+        white-space: nowrap;
+        pointer-events: none;
+
+        /* Ensures it never exceeds viewport, and only wraps if it truly must */
+        max-width: 100vw;
+        box-sizing: border-box;
+        overflow-wrap: break-word;
+      }
+      
+      .leaflet-popup-content {
+        font-size: 14px;
+        line-height: 1.5;
+        min-width: 200px;
+     }
+      .leaflet-popup-content b { font-size: 15px; }
+      .leaflet-popup-content a { font-size: 14px; }
+
+      @media (max-width: 768px) {
+        .map-caption {
+          font-size: 13px;
+          bottom: 24px;
+        }
+        
+        .leaflet-popup-content {
+          font-size: 16px;
+          line-height: 1.6;
+          min-width: 220px;
+        }
+        .leaflet-popup-content b { font-size: 17px; }
+        .leaflet-popup-content a { font-size: 16px; }
+      }
+    "
+      )),
+      tags$div(
+        class = "map-caption",
+        "*locations are approximate to maintain privacy*"
+      ),
       tags$head(tags$link(
         rel = "stylesheet",
-        href = "style.css"
+        href = "https://unpkg.com"
       )),
       tags$head(tags$meta(
         name = "viewport",
         content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
       ))
-    ),
+    ) |>
+      onRender(
+        "
+    function(el, x) {
+      document.title = 'ND Licensed Aerial Applicators';
+    }
+  "
+      ),
     file = "index.html"
   )
 }
