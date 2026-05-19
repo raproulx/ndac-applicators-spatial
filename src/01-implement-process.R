@@ -13,7 +13,7 @@ conflicted::conflicts_prefer(dplyr::filter)
 source("./fun/read_ndac_directory.R")
 
 # read NDAC tabular directory ---------------------------------------------
-dat <- read_ndac_directory(
+dat_ndac <- read_ndac_directory(
   input = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSVKqNEfTonjBJmfEtT6c2md4W0jXvJZ6vQPVEBBSIAOEAXeKvhw5T_pMJC1jNXK6hxZcpAzxeeGvpp/pubhtml"
 )
 
@@ -21,7 +21,7 @@ dat <- read_ndac_directory(
 dat_geo_saved <- read_parquet("results/ndac-directory-georeferenced.parquet")
 
 # geocode new directory entries -------------------------------------------
-dat_new <- dat |>
+dat_new <- dat_ndac |>
   anti_join(dat_geo_saved)
 
 dat_geo_new <- dat_new |>
