@@ -52,72 +52,72 @@ if (nrow(dat_new) > 0) {
     geocode(city = CITY, state = STATE, method = "osm")
 }
 
-# identify and alert georeferencing errors --------------------------------
-dat_geo_errors <- dat_geo_new |>
-  filter(is.na(lat) | is.na(long))
+if (nrow(dat_new) > 0) {
+  # identify and alert georeferencing errors --------------------------------
+  dat_geo_errors <- dat_geo_new |>
+    filter(is.na(lat) | is.na(long))
 
-if (nrow(dat_geo_errors) > 0) {
-  con <- textConnection("msg", open = "w")
+  if (nrow(dat_geo_errors) > 0) {
+    con <- textConnection("msg", open = "w")
 
-  dat_geo_new |>
-    filter(is.na(lat) | is.na(long)) |>
-    select(`BUSINESS NAME`, CITY, STATE) |>
-    write.csv(con, row.names = FALSE)
+    dat_geo_new |>
+      filter(is.na(lat) | is.na(long)) |>
+      select(`BUSINESS NAME`, CITY, STATE) |>
+      write.csv(con, row.names = FALSE)
 
-  close(con)
+    close(con)
 
-  pushover(
-    message = str_c(msg, collapse = "\n"),
-    title = "NDAC Directory geocoding error!"
-  )
-}
-
-# write all geocoded entries to parquet ----------------------------------
-write_parquet(
-  dat_geo_saved |>
-    inner_join(
-      dat_ndac |>
-        select(`BUSINESS NAME`, `OWNER/OPERATOR`)
-    ) |>
-    bind_rows(
-      dat_geo_new |>
-        filter_out(is.na(lat) | is.na(long))
-    ) |>
-    arrange(`BUSINESS NAME`),
-  "results/ndac-directory-georeferenced.parquet"
-)
-
-
-# create Leaflet map ------------------------------------------------------
-dat_leaflet <- read_parquet("results/ndac-directory-georeferenced.parquet") |>
-  arrange(`BUSINESS NAME`) |>
-  filter_out(`TYPE OF LICENSE` == "PRIVATE ONLY") |>
-  mutate(across(
-    c(
-      `OWNER/OPERATOR`,
-      CITY,
-      `CHIEF PILOT (RESPONSIBLE FOR ALL PILOTS)`,
-      `ADDL PILOTS`,
-      `TYPE OF LICENSE`
-    ),
-    ~ str_to_title(.x)
-  )) |>
-  mutate(
-    `ADDL PILOTS` = if_else(
-      `ADDL PILOTS` == "None Listed",
-      "N/A",
-      `ADDL PILOTS`
+    pushover(
+      message = str_c(msg, collapse = "\n"),
+      title = "NDAC Directory geocoding error!"
     )
+  }
+
+  # write all geocoded entries to parquet ----------------------------------
+  write_parquet(
+    dat_geo_saved |>
+      inner_join(
+        dat_ndac |>
+          select(`BUSINESS NAME`, `OWNER/OPERATOR`)
+      ) |>
+      bind_rows(
+        dat_geo_new |>
+          filter_out(is.na(lat) | is.na(long))
+      ) |>
+      arrange(`BUSINESS NAME`),
+    "results/ndac-directory-georeferenced.parquet"
   )
 
-ndac_entries <- dat_leaflet |>
-  st_as_sf(coords = c("long", "lat"), crs = 4326) |>
-  st_jitter(factor = 0.003)
+  # create Leaflet map ------------------------------------------------------
+  dat_leaflet <- read_parquet("results/ndac-directory-georeferenced.parquet") |>
+    arrange(`BUSINESS NAME`) |>
+    filter_out(`TYPE OF LICENSE` == "PRIVATE ONLY") |>
+    mutate(across(
+      c(
+        `OWNER/OPERATOR`,
+        CITY,
+        `CHIEF PILOT (RESPONSIBLE FOR ALL PILOTS)`,
+        `ADDL PILOTS`,
+        `TYPE OF LICENSE`
+      ),
+      ~ str_to_title(.x)
+    )) |>
+    mutate(
+      `ADDL PILOTS` = if_else(
+        `ADDL PILOTS` == "None Listed",
+        "N/A",
+        `ADDL PILOTS`
+      )
+    )
 
-pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
+  ndac_entries <- dat_leaflet |>
+    st_as_sf(coords = c("long", "lat"), crs = 4326) |>
+    st_jitter(factor = 0.004)
 
-tag.map.title <- tags$style(HTML(
-  "
+  pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
+
+  tag.map.title <- tags$style(HTML(
+    "
   .leaflet-control.map-title { 
     transform: translate(-50%,0%);
     position: fixed !important;
@@ -132,71 +132,72 @@ tag.map.title <- tags$style(HTML(
     font-size: 14px;
   }
 "
-))
+  ))
 
-title <- tags$div(
-  tag.map.title,
-  HTML(title_ndac)
-)
-
-m <- leaflet(
-  data = ndac_entries,
-  options = leafletOptions(
-    minZoom = 5,
-    maxZoom = 10
+  title <- tags$div(
+    tag.map.title,
+    HTML(title_ndac)
   )
-) |>
-  addTiles() |>
-  addCircleMarkers(
+
+  m <- leaflet(
     data = ndac_entries,
-    group = ndac_entries$`TYPE OF LICENSE`,
-    color = ~ pal(ndac_entries$`TYPE OF LICENSE`),
-    # fmt: skip
-    popup = str_c(
-      "<b>", ndac_entries$`BUSINESS NAME`, "</b><br><br>",
-      "<b>OWNER/OPERATOR: </b>", ndac_entries$`OWNER/OPERATOR`, "<br>",
-      "<b>EMAIL: </b><a href='mailto:", ndac_entries$`EMAIL`, "'>", ndac_entries$`EMAIL`, "</a><br>",
-      "<b>PHONE: </b><a href='tel:", ndac_entries$`PHONE`, "'>", ndac_entries$`PHONE`, "</a><br>",
-      "<b>CITY/STATE: </b>", ndac_entries$`CITY`, ", ", ndac_entries$`STATE`, "<br>",
-      "<b>CHIEF PILOT: </b>", ndac_entries$`CHIEF PILOT (RESPONSIBLE FOR ALL PILOTS)`, "<br>",
-      "<b>ADDL PILOTS: </b>", ndac_entries$`ADDL PILOTS`, "<br>",
-      "<b>TYPE OF LICENSE: </b>", ndac_entries$`TYPE OF LICENSE`, "<br>"
-    ),
-    clusterOptions = NULL
-  ) |>
-  addLegend(
-    position = "topright",
-    pal = pal,
-    values = ~`TYPE OF LICENSE`
-  ) |>
-  addLayersControl(
-    overlayGroups = c("Manned", "Unmanned"),
-    options = layersControlOptions(collapsed = FALSE)
-  ) |>
-  addSearchOSM(searchOptions(
-    marker = list(
-      icon = NULL,
-      animate = TRUE,
-      circle = list(
-        radius = 5,
-        weight = 5,
-        color = "#e03",
-        stroke = TRUE,
-        fill = TRUE
-      )
-    ),
-    textPlaceholder = "Address Search...",
-  )) |>
-  addScaleBar(
-    position = "bottomleft",
-    options = scaleBarOptions(
-      maxWidth = 100,
-      imperial = TRUE,
-      updateWhenIdle = TRUE
+    options = leafletOptions(
+      minZoom = 5,
+      maxZoom = 10
     )
   ) |>
-  addControl(title, position = "topright", className = "map-title")
-m
+    addTiles() |>
+    addCircleMarkers(
+      data = ndac_entries,
+      group = ~`TYPE OF LICENSE`,
+      color = ~ pal(`TYPE OF LICENSE`),
+      # fmt: skip
+      popup = ~ str_c(
+      "<b>", `BUSINESS NAME`, "</b><br><br>",
+      "<b>OWNER/OPERATOR: </b>", `OWNER/OPERATOR`, "<br>",
+      "<b>EMAIL: </b><a href='mailto:", `EMAIL`, "'>", `EMAIL`, "</a><br>",
+      "<b>PHONE: </b><a href='tel:", `PHONE`, "'>", `PHONE`, "</a><br>",
+      "<b>CITY/STATE: </b>", `CITY`, ", ", `STATE`, "<br>",
+      "<b>CHIEF PILOT: </b>", `CHIEF PILOT (RESPONSIBLE FOR ALL PILOTS)`, "<br>",
+      "<b>ADDL PILOTS: </b>", `ADDL PILOTS`, "<br>",
+      "<b>TYPE OF LICENSE: </b>", `TYPE OF LICENSE`, "<br>"
+    ),
+      clusterOptions = NULL
+    ) |>
+    addLegend(
+      position = "topright",
+      pal = pal,
+      values = ~`TYPE OF LICENSE`
+    ) |>
+    addLayersControl(
+      overlayGroups = c("Manned", "Unmanned"),
+      options = layersControlOptions(collapsed = FALSE)
+    ) |>
+    addSearchOSM(searchOptions(
+      marker = list(
+        icon = NULL,
+        animate = TRUE,
+        circle = list(
+          radius = 5,
+          weight = 5,
+          color = "#e03",
+          stroke = TRUE,
+          fill = TRUE
+        )
+      ),
+      textPlaceholder = "Address Search...",
+    )) |>
+    addScaleBar(
+      position = "bottomleft",
+      options = scaleBarOptions(
+        maxWidth = 100,
+        imperial = TRUE,
+        updateWhenIdle = TRUE
+      )
+    ) |>
+    addControl(title, position = "topright", className = "map-title")
+  m
 
-# write Leaflet map to HTML -----------------------------------------------
-saveWidget(m, file = "index.html")
+  # write Leaflet map to HTML -----------------------------------------------
+  saveWidget(m, file = "index.html")
+}
