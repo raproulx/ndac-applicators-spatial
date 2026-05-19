@@ -1,4 +1,5 @@
 library(tidyverse)
+library(rvest)
 library(sf)
 library(nanoparquet)
 library(tidygeocoder)
@@ -11,11 +12,29 @@ library(htmlwidgets)
 conflicted::conflicts_prefer(dplyr::filter)
 
 source("./fun/read_ndac_directory.R")
+ndac_url <- "https://docs.google.com/spreadsheets/d/e/2PACX-1vSVKqNEfTonjBJmfEtT6c2md4W0jXvJZ6vQPVEBBSIAOEAXeKvhw5T_pMJC1jNXK6hxZcpAzxeeGvpp/pubhtml"
 
 # read NDAC tabular directory ---------------------------------------------
 dat_ndac <- read_ndac_directory(
-  input = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSVKqNEfTonjBJmfEtT6c2md4W0jXvJZ6vQPVEBBSIAOEAXeKvhw5T_pMJC1jNXK6hxZcpAzxeeGvpp/pubhtml"
+  input = ndac_url
 )
+
+title_ndac <- str_c(
+  "ND ",
+  read_html(ndac_url) |>
+    html_element(xpath = "body/div[1]/div/span") |>
+    html_text()
+) %>%
+  str_replace(
+    "\\d{8}$",
+    str_extract(string = ., pattern = "\\d{8}$") |>
+      mdy() |>
+      format("%B %d, %Y")
+  ) |>
+  str_replace(" :", "<br>") |>
+  str_c(
+    "<br><span style=font-size: 10px;>*locations are approximate to maintain privacy*</span>"
+  )
 
 # read existing georeferenced directory -----------------------------------
 dat_geo_saved <- read_parquet("results/ndac-directory-georeferenced.parquet")
