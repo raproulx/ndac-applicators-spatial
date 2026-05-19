@@ -147,8 +147,8 @@ if (nrow(dat_new) > 0) {
   ) |>
     addTiles(
       options = tileOptions(
-        tileSize = 256,
-        zoomOffset = 0,
+        tileSize = 512,
+        zoomOffset = -1,
         detectRetina = TRUE
       )
     ) |>
