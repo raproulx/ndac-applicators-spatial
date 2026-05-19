@@ -112,7 +112,7 @@ dat_leaflet <- read_parquet("results/ndac-directory-georeferenced.parquet") |>
 
 ndac_entries <- dat_leaflet |>
   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
-  st_jitter(amount = 0.05)
+  st_jitter(factor = 0.003)
 
 pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
 
@@ -164,6 +164,11 @@ m <- leaflet(
     ),
     clusterOptions = NULL
   ) |>
+  addLegend(
+    position = "topright",
+    pal = pal,
+    values = ~`TYPE OF LICENSE`
+  ) |>
   addLayersControl(
     overlayGroups = c("Manned", "Unmanned"),
     options = layersControlOptions(collapsed = FALSE)
@@ -173,14 +178,22 @@ m <- leaflet(
       icon = NULL,
       animate = TRUE,
       circle = list(
-        radius = 10,
-        weight = 3,
+        radius = 5,
+        weight = 5,
         color = "#e03",
-        stroke = FALSE,
-        fill = FALSE
+        stroke = TRUE,
+        fill = TRUE
       )
+    ),
+    textPlaceholder = "Address Search...",
+  )) |>
+  addScaleBar(
+    position = "bottomleft",
+    options = scaleBarOptions(
+      maxWidth = 100,
+      imperial = TRUE,
+      updateWhenIdle = TRUE
     )
-  ))
   ) |>
   addControl(title, position = "topright", className = "map-title")
 m
