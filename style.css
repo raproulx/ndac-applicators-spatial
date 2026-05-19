@@ -7,6 +7,6 @@
 /* Mobile override: 80% of dynamic viewport height */
 @media (max-width: 768px) {
   #map {
-    height: 80dvh;
+    height: 70dvh;
   }
 }
