@@ -127,4 +127,4 @@ m <- leaflet(ndac_entries) |>
 m
 
 # write Leaflet map to HTML -----------------------------------------------
-saveWidget(m, file = "index/leaflet_map.html")
+saveWidget(m, file = "index.html")
