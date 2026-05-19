@@ -42,7 +42,10 @@ dat_geo_saved <- read_parquet("results/ndac-directory-georeferenced.parquet")
 
 # geocode new directory entries -------------------------------------------
 dat_new <- dat_ndac |>
-  anti_join(dat_geo_saved)
+  anti_join(
+    dat_geo_saved |>
+      select(`BUSINESS NAME`, `OWNER/OPERATOR`)
+  )
 
 dat_geo_new <- dat_new |>
   geocode(city = CITY, state = STATE, method = "osm")
@@ -70,7 +73,10 @@ if (nrow(dat_geo_errors) > 0) {
 # write all geocoded entries to parquet ----------------------------------
 write_parquet(
   dat_geo_saved |>
-    right_join(dat_ndac) |>
+    inner_join(
+      dat_ndac |>
+        select(`BUSINESS NAME`, `OWNER/OPERATOR`)
+    ) |>
     bind_rows(
       dat_geo_new |>
         filter_out(is.na(lat) | is.na(long))
