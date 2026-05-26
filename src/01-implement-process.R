@@ -147,7 +147,12 @@ if (nrow(dat_new) > 0) {
   ) |>
     addTiles(
       urlTemplate = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      group = "Standard"
+    ) |>
+    addProviderTiles(
+      providers$CartoDB.Positron,
+      group = "Light"
     ) |>
     addCircleMarkers(
       data = ndac_entries,
@@ -173,6 +178,7 @@ if (nrow(dat_new) > 0) {
       title = title_ndac
     ) |>
     addLayersControl(
+      baseGroups = c("Standard", "Light"),
       overlayGroups = c("Manned", "Unmanned"),
       options = layersControlOptions(collapsed = FALSE)
     ) |>
@@ -271,6 +277,16 @@ if (nrow(dat_new) > 0) {
         "
     function(el, x) {
       document.title = 'ND Licensed Aerial Applicators';
+    }
+  "
+      ) |>
+      onRender(
+        "
+    function(el, x) {
+      // Prepend a title to the base layers section
+      $('.leaflet-control-layers-base').prepend('<label style=\"text-align:left; font-weight:bold\">Basemap</label>');
+      // Prepend a title to the overlay layers section
+      $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:left; font-weight:bold\">Data Layers</label>');
     }
   "
       ),
