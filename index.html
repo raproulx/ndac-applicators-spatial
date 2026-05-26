@@ -4047,6 +4047,1189 @@ function asArray(value) {
 
 },{}]},{},[13]);
 </script>
+<script>(function (root, factory) {
+	if (typeof define === 'function' && define.amd) {
+		// AMD. Register as an anonymous module.
+		define(['leaflet'], factory);
+	} else if (typeof modules === 'object' && module.exports) {
+		// define a Common JS module that relies on 'leaflet'
+		module.exports = factory(require('leaflet'));
+	} else {
+		// Assume Leaflet is loaded into global object L already
+		factory(L);
+	}
+}(this, function (L) {
+	'use strict';
+
+	L.TileLayer.Provider = L.TileLayer.extend({
+		initialize: function (arg, options) {
+			var providers = L.TileLayer.Provider.providers;
+
+			var parts = arg.split('.');
+
+			var providerName = parts[0];
+			var variantName = parts[1];
+
+			if (!providers[providerName]) {
+				throw 'No such provider (' + providerName + ')';
+			}
+
+			var provider = {
+				url: providers[providerName].url,
+				options: providers[providerName].options
+			};
+
+			// overwrite values in provider from variant.
+			if (variantName && 'variants' in providers[providerName]) {
+				if (!(variantName in providers[providerName].variants)) {
+					throw 'No such variant of ' + providerName + ' (' + variantName + ')';
+				}
+				var variant = providers[providerName].variants[variantName];
+				var variantOptions;
+				if (typeof variant === 'string') {
+					variantOptions = {
+						variant: variant
+					};
+				} else {
+					variantOptions = variant.options;
+				}
+				provider = {
+					url: variant.url || provider.url,
+					options: L.Util.extend({}, provider.options, variantOptions)
+				};
+			}
+
+			// replace attribution placeholders with their values from toplevel provider attribution,
+			// recursively
+			var attributionReplacer = function (attr) {
+				if (attr.indexOf('{attribution.') === -1) {
+					return attr;
+				}
+				return attr.replace(/\{attribution.(\w*)\}/g,
+					function (match, attributionName) {
+						return attributionReplacer(providers[attributionName].options.attribution);
+					}
+				);
+			};
+			provider.options.attribution = attributionReplacer(provider.options.attribution);
+
+			// Compute final options combining provider options with any user overrides
+			var layerOpts = L.Util.extend({}, provider.options, options);
+			L.TileLayer.prototype.initialize.call(this, provider.url, layerOpts);
+		}
+	});
+
+	/**
+	 * Definition of providers.
+	 * see http://leafletjs.com/reference.html#tilelayer for options in the options map.
+	 */
+
+	L.TileLayer.Provider.providers = {
+		OpenStreetMap: {
+			url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 19,
+				attribution:
+					'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+			},
+			variants: {
+				Mapnik: {},
+				DE: {
+					url: 'https://tile.openstreetmap.de/{z}/{x}/{y}.png',
+					options: {
+						maxZoom: 18
+					}
+				},
+				CH: {
+					url: 'https://tile.osm.ch/switzerland/{z}/{x}/{y}.png',
+					options: {
+						maxZoom: 18,
+						bounds: [[45, 5], [48, 11]]
+					}
+				},
+				France: {
+					url: 'https://{s}.tile.openstreetmap.fr/osmfr/{z}/{x}/{y}.png',
+					options: {
+						maxZoom: 20,
+						attribution: '&copy; OpenStreetMap France | {attribution.OpenStreetMap}'
+					}
+				},
+				HOT: {
+					url: 'https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png',
+					options: {
+						attribution:
+							'{attribution.OpenStreetMap}, ' +
+							'Tiles style by <a href="https://www.hotosm.org/" target="_blank">Humanitarian OpenStreetMap Team</a> ' +
+							'hosted by <a href="https://openstreetmap.fr/" target="_blank">OpenStreetMap France</a>'
+					}
+				},
+				BZH: {
+					url: 'https://tile.openstreetmap.bzh/br/{z}/{x}/{y}.png',
+					options: {
+						attribution: '{attribution.OpenStreetMap}, Tiles courtesy of <a href="http://www.openstreetmap.bzh/" target="_blank">Breton OpenStreetMap Team</a>',
+						bounds: [[46.2, -5.5], [50, 0.7]]
+					}
+				}
+			}
+		},
+		MapTilesAPI: {
+			url: 'https://maptiles.p.rapidapi.com/{variant}/{z}/{x}/{y}.png?rapidapi-key={apikey}',
+			options: {
+				attribution:
+					'&copy; <a href="http://www.maptilesapi.com/">MapTiles API</a>, {attribution.OpenStreetMap}',
+				variant: 'en/map/v1',
+				// Get your own MapTiles API access token here : https://www.maptilesapi.com/
+				// NB : this is a demonstration key that comes with no guarantee and not to be used in production
+				apikey: '<insert your api key here>',
+				maxZoom: 19
+			},
+			variants: {
+				OSMEnglish: {
+					options: {
+						variant: 'en/map/v1'
+					}
+				},
+				OSMFrancais: {
+					options: {
+						variant: 'fr/map/v1'
+					}
+				},
+				OSMEspagnol: {
+					options: {
+						variant: 'es/map/v1'
+					}
+				}
+			}
+		},
+		OpenSeaMap: {
+			url: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+			options: {
+				attribution: 'Map data: &copy; <a href="http://www.openseamap.org">OpenSeaMap</a> contributors'
+			}
+		},
+		OPNVKarte: {
+			url: 'https://tileserver.memomaps.de/tilegen/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 18,
+				attribution: 'Map <a href="https://memomaps.de/">memomaps.de</a> <a href="http://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>, map data {attribution.OpenStreetMap}'
+			}
+		},
+		OpenTopoMap: {
+			url: 'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 17,
+				attribution: 'Map data: {attribution.OpenStreetMap}, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+			}
+		},
+		OpenRailwayMap: {
+			url: 'https://{s}.tiles.openrailwaymap.org/standard/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 19,
+				attribution: 'Map data: {attribution.OpenStreetMap} | Map style: &copy; <a href="https://www.OpenRailwayMap.org">OpenRailwayMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+			}
+		},
+		OpenFireMap: {
+			url: 'http://openfiremap.org/hytiles/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 19,
+				attribution: 'Map data: {attribution.OpenStreetMap} | Map style: &copy; <a href="http://www.openfiremap.org">OpenFireMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+			}
+		},
+		SafeCast: {
+			url: 'https://s3.amazonaws.com/te512.safecast.org/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 16,
+				attribution: 'Map data: {attribution.OpenStreetMap} | Map style: &copy; <a href="https://blog.safecast.org/about/">SafeCast</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+			}
+		},
+		Stadia: {
+			url: 'https://tiles.stadiamaps.com/tiles/{variant}/{z}/{x}/{y}{r}.{ext}',
+			options: {
+				minZoom: 0,
+				maxZoom: 20,
+				attribution:
+					'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+					'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+					'{attribution.OpenStreetMap}',
+				variant: 'alidade_smooth',
+				ext: 'png'
+			},
+			variants: {
+				AlidadeSmooth: 'alidade_smooth',
+				AlidadeSmoothDark: 'alidade_smooth_dark',
+				OSMBright: 'osm_bright',
+				Outdoors: 'outdoors',
+				StamenToner: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_toner'
+					}
+				},
+				StamenTonerBackground: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_toner_background'
+					}
+				},
+				StamenTonerLines: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_toner_lines'
+					}
+				},
+				StamenTonerLabels: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_toner_labels'
+					}
+				},
+				StamenTonerLite: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_toner_lite'
+					}
+				},
+				StamenWatercolor: {
+					url: 'https://tiles.stadiamaps.com/tiles/{variant}/{z}/{x}/{y}.{ext}',
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_watercolor',
+						ext: 'jpg',
+						minZoom: 1,
+						maxZoom: 16
+					}
+				},
+				StamenTerrain: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_terrain',
+						minZoom: 0,
+						maxZoom: 18
+					}
+				},
+				StamenTerrainBackground: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_terrain_background',
+						minZoom: 0,
+						maxZoom: 18
+					}
+				},
+				StamenTerrainLabels: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_terrain_labels',
+						minZoom: 0,
+						maxZoom: 18
+					}
+				},
+				StamenTerrainLines: {
+					options: {
+						attribution:
+							'&copy; <a href="https://www.stadiamaps.com/" target="_blank">Stadia Maps</a> ' +
+							'&copy; <a href="https://www.stamen.com/" target="_blank">Stamen Design</a> ' +
+							'&copy; <a href="https://openmaptiles.org/" target="_blank">OpenMapTiles</a> ' +
+							'{attribution.OpenStreetMap}',
+						variant: 'stamen_terrain_lines',
+						minZoom: 0,
+						maxZoom: 18
+					}
+				}
+			}
+		},
+		Thunderforest: {
+			url: 'https://{s}.tile.thunderforest.com/{variant}/{z}/{x}/{y}.png?apikey={apikey}',
+			options: {
+				attribution:
+					'&copy; <a href="http://www.thunderforest.com/">Thunderforest</a>, {attribution.OpenStreetMap}',
+				variant: 'cycle',
+				apikey: '<insert your api key here>',
+				maxZoom: 22
+			},
+			variants: {
+				OpenCycleMap: 'cycle',
+				Transport: {
+					options: {
+						variant: 'transport'
+					}
+				},
+				TransportDark: {
+					options: {
+						variant: 'transport-dark'
+					}
+				},
+				SpinalMap: {
+					options: {
+						variant: 'spinal-map'
+					}
+				},
+				Landscape: 'landscape',
+				Outdoors: 'outdoors',
+				Pioneer: 'pioneer',
+				MobileAtlas: 'mobile-atlas',
+				Neighbourhood: 'neighbourhood'
+			}
+		},
+		CyclOSM: {
+			url: 'https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 20,
+				attribution: '<a href="https://github.com/cyclosm/cyclosm-cartocss-style/releases" title="CyclOSM - Open Bicycle render">CyclOSM</a> | Map data: {attribution.OpenStreetMap}'
+			}
+		},
+		Jawg: {
+			url: 'https://{s}.tile.jawg.io/{variant}/{z}/{x}/{y}{r}.png?access-token={accessToken}',
+			options: {
+				attribution:
+					'<a href="http://jawg.io" title="Tiles Courtesy of Jawg Maps" target="_blank">&copy; <b>Jawg</b>Maps</a> ' +
+					'{attribution.OpenStreetMap}',
+				minZoom: 0,
+				maxZoom: 22,
+				subdomains: 'abcd',
+				variant: 'jawg-terrain',
+				// Get your own Jawg access token here : https://www.jawg.io/lab/
+				// NB : this is a demonstration key that comes with no guarantee
+				accessToken: '<insert your access token here>',
+			},
+			variants: {
+				Streets: 'jawg-streets',
+				Terrain: 'jawg-terrain',
+				Sunny: 'jawg-sunny',
+				Dark: 'jawg-dark',
+				Light: 'jawg-light',
+				Matrix: 'jawg-matrix'
+			}
+		},
+		MapBox: {
+			url: 'https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}{r}?access_token={accessToken}',
+			options: {
+				attribution:
+					'&copy; <a href="https://www.mapbox.com/about/maps/" target="_blank">Mapbox</a> ' +
+					'{attribution.OpenStreetMap} ' +
+					'<a href="https://www.mapbox.com/map-feedback/" target="_blank">Improve this map</a>',
+				tileSize: 512,
+				maxZoom: 18,
+				zoomOffset: -1,
+				id: 'mapbox/streets-v11',
+				accessToken: '<insert your access token here>',
+			}
+		},
+		MapTiler: {
+			url: 'https://api.maptiler.com/maps/{variant}/{z}/{x}/{y}{r}.{ext}?key={key}',
+			options: {
+				attribution:
+					'<a href="https://www.maptiler.com/copyright/" target="_blank">&copy; MapTiler</a> <a href="https://www.openstreetmap.org/copyright" target="_blank">&copy; OpenStreetMap contributors</a>',
+				variant: 'streets',
+				ext: 'png',
+				key: '<insert your MapTiler Cloud API key here>',
+				tileSize: 512,
+				zoomOffset: -1,
+				minZoom: 0,
+				maxZoom: 21
+			},
+			variants: {
+				Streets: 'streets',
+				Basic: 'basic',
+				Bright: 'bright',
+				Pastel: 'pastel',
+				Positron: 'positron',
+				Hybrid: {
+					options: {
+						variant: 'hybrid',
+						ext: 'jpg'
+					}
+				},
+				Toner: 'toner',
+				Topo: 'topo',
+				Voyager: 'voyager'
+			}
+		},
+		TomTom: {
+			url: 'https://{s}.api.tomtom.com/map/1/tile/{variant}/{style}/{z}/{x}/{y}.{ext}?key={apikey}',
+			options: {
+				variant: 'basic',
+				maxZoom: 22,
+				attribution:
+					'<a href="https://tomtom.com" target="_blank">&copy;  1992 - ' + new Date().getFullYear() + ' TomTom.</a> ',
+				subdomains: 'abcd',
+				style: 'main',
+				ext: 'png',
+				apikey: '<insert your API key here>',
+			},
+			variants: {
+				Basic: 'basic',
+				Hybrid: 'hybrid',
+				Labels: 'labels'
+			}
+		},
+		Esri: {
+			url: 'https://server.arcgisonline.com/ArcGIS/rest/services/{variant}/MapServer/tile/{z}/{y}/{x}',
+			options: {
+				variant: 'World_Street_Map',
+				attribution: 'Tiles &copy; Esri'
+			},
+			variants: {
+				WorldStreetMap: {
+					options: {
+						attribution:
+							'{attribution.Esri} &mdash; ' +
+							'Source: Esri, DeLorme, NAVTEQ, USGS, Intermap, iPC, NRCAN, Esri Japan, METI, Esri China (Hong Kong), Esri (Thailand), TomTom, 2012'
+					}
+				},
+				DeLorme: {
+					options: {
+						variant: 'Specialty/DeLorme_World_Base_Map',
+						minZoom: 1,
+						maxZoom: 11,
+						attribution: '{attribution.Esri} &mdash; Copyright: &copy;2012 DeLorme'
+					}
+				},
+				WorldTopoMap: {
+					options: {
+						variant: 'World_Topo_Map',
+						attribution:
+							'{attribution.Esri} &mdash; ' +
+							'Esri, DeLorme, NAVTEQ, TomTom, Intermap, iPC, USGS, FAO, NPS, NRCAN, GeoBase, Kadaster NL, Ordnance Survey, Esri Japan, METI, Esri China (Hong Kong), and the GIS User Community'
+					}
+				},
+				WorldImagery: {
+					options: {
+						variant: 'World_Imagery',
+						attribution:
+							'{attribution.Esri} &mdash; ' +
+							'Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+					}
+				},
+				WorldTerrain: {
+					options: {
+						variant: 'World_Terrain_Base',
+						maxZoom: 13,
+						attribution:
+							'{attribution.Esri} &mdash; ' +
+							'Source: USGS, Esri, TANA, DeLorme, and NPS'
+					}
+				},
+				WorldShadedRelief: {
+					options: {
+						variant: 'World_Shaded_Relief',
+						maxZoom: 13,
+						attribution: '{attribution.Esri} &mdash; Source: Esri'
+					}
+				},
+				WorldPhysical: {
+					options: {
+						variant: 'World_Physical_Map',
+						maxZoom: 8,
+						attribution: '{attribution.Esri} &mdash; Source: US National Park Service'
+					}
+				},
+				OceanBasemap: {
+					options: {
+						variant: 'Ocean/World_Ocean_Base',
+						maxZoom: 13,
+						attribution: '{attribution.Esri} &mdash; Sources: GEBCO, NOAA, CHS, OSU, UNH, CSUMB, National Geographic, DeLorme, NAVTEQ, and Esri'
+					}
+				},
+				NatGeoWorldMap: {
+					options: {
+						variant: 'NatGeo_World_Map',
+						maxZoom: 16,
+						attribution: '{attribution.Esri} &mdash; National Geographic, Esri, DeLorme, NAVTEQ, UNEP-WCMC, USGS, NASA, ESA, METI, NRCAN, GEBCO, NOAA, iPC'
+					}
+				},
+				WorldGrayCanvas: {
+					options: {
+						variant: 'Canvas/World_Light_Gray_Base',
+						maxZoom: 16,
+						attribution: '{attribution.Esri} &mdash; Esri, DeLorme, NAVTEQ'
+					}
+				}
+			}
+		},
+		OpenWeatherMap: {
+			url: 'http://{s}.tile.openweathermap.org/map/{variant}/{z}/{x}/{y}.png?appid={apiKey}',
+			options: {
+				maxZoom: 19,
+				attribution: 'Map data &copy; <a href="http://openweathermap.org">OpenWeatherMap</a>',
+				apiKey: '<insert your api key here>',
+				opacity: 0.5
+			},
+			variants: {
+				Clouds: 'clouds',
+				CloudsClassic: 'clouds_cls',
+				Precipitation: 'precipitation',
+				PrecipitationClassic: 'precipitation_cls',
+				Rain: 'rain',
+				RainClassic: 'rain_cls',
+				Pressure: 'pressure',
+				PressureContour: 'pressure_cntr',
+				Wind: 'wind',
+				Temperature: 'temp',
+				Snow: 'snow'
+			}
+		},
+		HERE: {
+			/*
+			 * HERE maps, formerly Nokia maps.
+			 * These basemaps are free, but you need an api id and app key. Please sign up at
+			 * https://developer.here.com/plans
+			 */
+			url:
+				'https://{s}.{base}.maps.api.here.com/maptile/2.1/' +
+				'{type}/{mapID}/{variant}/{z}/{x}/{y}/{size}/{format}?' +
+				'app_id={app_id}&app_code={app_code}&lg={language}',
+			options: {
+				attribution:
+					'Map &copy; 1987-' + new Date().getFullYear() + ' <a href="http://developer.here.com">HERE</a>',
+				subdomains: '1234',
+				mapID: 'newest',
+				'app_id': '<insert your app_id here>',
+				'app_code': '<insert your app_code here>',
+				base: 'base',
+				variant: 'normal.day',
+				maxZoom: 20,
+				type: 'maptile',
+				language: 'eng',
+				format: 'png8',
+				size: '256'
+			},
+			variants: {
+				normalDay: 'normal.day',
+				normalDayCustom: 'normal.day.custom',
+				normalDayGrey: 'normal.day.grey',
+				normalDayMobile: 'normal.day.mobile',
+				normalDayGreyMobile: 'normal.day.grey.mobile',
+				normalDayTransit: 'normal.day.transit',
+				normalDayTransitMobile: 'normal.day.transit.mobile',
+				normalDayTraffic: {
+					options: {
+						variant: 'normal.traffic.day',
+						base: 'traffic',
+						type: 'traffictile'
+					}
+				},
+				normalNight: 'normal.night',
+				normalNightMobile: 'normal.night.mobile',
+				normalNightGrey: 'normal.night.grey',
+				normalNightGreyMobile: 'normal.night.grey.mobile',
+				normalNightTransit: 'normal.night.transit',
+				normalNightTransitMobile: 'normal.night.transit.mobile',
+				reducedDay: 'reduced.day',
+				reducedNight: 'reduced.night',
+				basicMap: {
+					options: {
+						type: 'basetile'
+					}
+				},
+				mapLabels: {
+					options: {
+						type: 'labeltile',
+						format: 'png'
+					}
+				},
+				trafficFlow: {
+					options: {
+						base: 'traffic',
+						type: 'flowtile'
+					}
+				},
+				carnavDayGrey: 'carnav.day.grey',
+				hybridDay: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.day'
+					}
+				},
+				hybridDayMobile: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.day.mobile'
+					}
+				},
+				hybridDayTransit: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.day.transit'
+					}
+				},
+				hybridDayGrey: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.grey.day'
+					}
+				},
+				hybridDayTraffic: {
+					options: {
+						variant: 'hybrid.traffic.day',
+						base: 'traffic',
+						type: 'traffictile'
+					}
+				},
+				pedestrianDay: 'pedestrian.day',
+				pedestrianNight: 'pedestrian.night',
+				satelliteDay: {
+					options: {
+						base: 'aerial',
+						variant: 'satellite.day'
+					}
+				},
+				terrainDay: {
+					options: {
+						base: 'aerial',
+						variant: 'terrain.day'
+					}
+				},
+				terrainDayMobile: {
+					options: {
+						base: 'aerial',
+						variant: 'terrain.day.mobile'
+					}
+				}
+			}
+		},
+		HEREv3: {
+			/*
+			 * HERE maps API Version 3.
+			 * These basemaps are free, but you need an API key. Please sign up at
+			 * https://developer.here.com/plans
+			 * Version 3 deprecates the app_id and app_code access in favor of apiKey
+			 *
+			 * Supported access methods as of 2019/12/21:
+			 * @see https://developer.here.com/faqs#access-control-1--how-do-you-control-access-to-here-location-services
+			 */
+			url:
+				'https://{s}.{base}.maps.ls.hereapi.com/maptile/2.1/' +
+				'{type}/{mapID}/{variant}/{z}/{x}/{y}/{size}/{format}?' +
+				'apiKey={apiKey}&lg={language}',
+			options: {
+				attribution:
+					'Map &copy; 1987-' + new Date().getFullYear() + ' <a href="http://developer.here.com">HERE</a>',
+				subdomains: '1234',
+				mapID: 'newest',
+				apiKey: '<insert your apiKey here>',
+				base: 'base',
+				variant: 'normal.day',
+				maxZoom: 20,
+				type: 'maptile',
+				language: 'eng',
+				format: 'png8',
+				size: '256'
+			},
+			variants: {
+				normalDay: 'normal.day',
+				normalDayCustom: 'normal.day.custom',
+				normalDayGrey: 'normal.day.grey',
+				normalDayMobile: 'normal.day.mobile',
+				normalDayGreyMobile: 'normal.day.grey.mobile',
+				normalDayTransit: 'normal.day.transit',
+				normalDayTransitMobile: 'normal.day.transit.mobile',
+				normalNight: 'normal.night',
+				normalNightMobile: 'normal.night.mobile',
+				normalNightGrey: 'normal.night.grey',
+				normalNightGreyMobile: 'normal.night.grey.mobile',
+				normalNightTransit: 'normal.night.transit',
+				normalNightTransitMobile: 'normal.night.transit.mobile',
+				reducedDay: 'reduced.day',
+				reducedNight: 'reduced.night',
+				basicMap: {
+					options: {
+						type: 'basetile'
+					}
+				},
+				mapLabels: {
+					options: {
+						type: 'labeltile',
+						format: 'png'
+					}
+				},
+				trafficFlow: {
+					options: {
+						base: 'traffic',
+						type: 'flowtile'
+					}
+				},
+				carnavDayGrey: 'carnav.day.grey',
+				hybridDay: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.day'
+					}
+				},
+				hybridDayMobile: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.day.mobile'
+					}
+				},
+				hybridDayTransit: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.day.transit'
+					}
+				},
+				hybridDayGrey: {
+					options: {
+						base: 'aerial',
+						variant: 'hybrid.grey.day'
+					}
+				},
+				pedestrianDay: 'pedestrian.day',
+				pedestrianNight: 'pedestrian.night',
+				satelliteDay: {
+					options: {
+						base: 'aerial',
+						variant: 'satellite.day'
+					}
+				},
+				terrainDay: {
+					options: {
+						base: 'aerial',
+						variant: 'terrain.day'
+					}
+				},
+				terrainDayMobile: {
+					options: {
+						base: 'aerial',
+						variant: 'terrain.day.mobile'
+					}
+				}
+			}
+		},
+		FreeMapSK: {
+			url: 'https://{s}.freemap.sk/T/{z}/{x}/{y}.jpeg',
+			options: {
+				minZoom: 8,
+				maxZoom: 16,
+				subdomains: 'abcd',
+				bounds: [[47.204642, 15.996093], [49.830896, 22.576904]],
+				attribution:
+					'{attribution.OpenStreetMap}, visualization CC-By-SA 2.0 <a href="http://freemap.sk">Freemap.sk</a>'
+			}
+		},
+		MtbMap: {
+			url: 'http://tile.mtbmap.cz/mtbmap_tiles/{z}/{x}/{y}.png',
+			options: {
+				attribution:
+					'{attribution.OpenStreetMap} &amp; USGS'
+			}
+		},
+		CartoDB: {
+			url: 'https://{s}.basemaps.cartocdn.com/{variant}/{z}/{x}/{y}{r}.png',
+			options: {
+				attribution: '{attribution.OpenStreetMap} &copy; <a href="https://carto.com/attributions">CARTO</a>',
+				subdomains: 'abcd',
+				maxZoom: 20,
+				variant: 'light_all'
+			},
+			variants: {
+				Positron: 'light_all',
+				PositronNoLabels: 'light_nolabels',
+				PositronOnlyLabels: 'light_only_labels',
+				DarkMatter: 'dark_all',
+				DarkMatterNoLabels: 'dark_nolabels',
+				DarkMatterOnlyLabels: 'dark_only_labels',
+				Voyager: 'rastertiles/voyager',
+				VoyagerNoLabels: 'rastertiles/voyager_nolabels',
+				VoyagerOnlyLabels: 'rastertiles/voyager_only_labels',
+				VoyagerLabelsUnder: 'rastertiles/voyager_labels_under'
+			}
+		},
+		HikeBike: {
+			url: 'https://tiles.wmflabs.org/{variant}/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 19,
+				attribution: '{attribution.OpenStreetMap}',
+				variant: 'hikebike'
+			},
+			variants: {
+				HikeBike: {},
+				HillShading: {
+					options: {
+						maxZoom: 15,
+						variant: 'hillshading'
+					}
+				}
+			}
+		},
+		BasemapAT: {
+			url: 'https://mapsneu.wien.gv.at/basemap/{variant}/{type}/google3857/{z}/{y}/{x}.{format}',
+			options: {
+				maxZoom: 19,
+				attribution: 'Datenquelle: <a href="https://www.basemap.at">basemap.at</a>',
+				type: 'normal',
+				format: 'png',
+				bounds: [[46.358770, 8.782379], [49.037872, 17.189532]],
+				variant: 'geolandbasemap'
+			},
+			variants: {
+				basemap: {
+					options: {
+						maxZoom: 20, // currently only in Vienna
+						variant: 'geolandbasemap'
+					}
+				},
+				grau: 'bmapgrau',
+				overlay: 'bmapoverlay',
+				terrain: {
+					options: {
+						variant: 'bmapgelaende',
+						type: 'grau',
+						format: 'jpeg'
+					}
+				},
+				surface: {
+					options: {
+						variant: 'bmapoberflaeche',
+						type: 'grau',
+						format: 'jpeg'
+					}
+				},
+				highdpi: {
+					options: {
+						variant: 'bmaphidpi',
+						format: 'jpeg'
+					}
+				},
+				orthofoto: {
+					options: {
+						maxZoom: 20, // currently only in Vienna
+						variant: 'bmaporthofoto30cm',
+						format: 'jpeg'
+					}
+				}
+			}
+		},
+		nlmaps: {
+			url: 'https://service.pdok.nl/brt/achtergrondkaart/wmts/v2_0/{variant}/EPSG:3857/{z}/{x}/{y}.png',
+			options: {
+				minZoom: 6,
+				maxZoom: 19,
+				bounds: [[50.5, 3.25], [54, 7.6]],
+				attribution: 'Kaartgegevens &copy; <a href="https://www.kadaster.nl">Kadaster</a>'
+			},
+			variants: {
+				'standaard': 'standaard',
+				'pastel': 'pastel',
+				'grijs': 'grijs',
+				'water': 'water',
+				'luchtfoto': {
+					'url': 'https://service.pdok.nl/hwh/luchtfotorgb/wmts/v1_0/Actueel_ortho25/EPSG:3857/{z}/{x}/{y}.jpeg',
+				}
+			}
+		},
+		NASAGIBS: {
+			url: 'https://map1.vis.earthdata.nasa.gov/wmts-webmerc/{variant}/default/{time}/{tilematrixset}{maxZoom}/{z}/{y}/{x}.{format}',
+			options: {
+				attribution:
+					'Imagery provided by services from the Global Imagery Browse Services (GIBS), operated by the NASA/GSFC/Earth Science Data and Information System ' +
+					'(<a href="https://earthdata.nasa.gov">ESDIS</a>) with funding provided by NASA/HQ.',
+				bounds: [[-85.0511287776, -179.999999975], [85.0511287776, 179.999999975]],
+				minZoom: 1,
+				maxZoom: 9,
+				format: 'jpg',
+				time: '',
+				tilematrixset: 'GoogleMapsCompatible_Level'
+			},
+			variants: {
+				ModisTerraTrueColorCR: 'MODIS_Terra_CorrectedReflectance_TrueColor',
+				ModisTerraBands367CR: 'MODIS_Terra_CorrectedReflectance_Bands367',
+				ViirsEarthAtNight2012: {
+					options: {
+						variant: 'VIIRS_CityLights_2012',
+						maxZoom: 8
+					}
+				},
+				ModisTerraLSTDay: {
+					options: {
+						variant: 'MODIS_Terra_Land_Surface_Temp_Day',
+						format: 'png',
+						maxZoom: 7,
+						opacity: 0.75
+					}
+				},
+				ModisTerraSnowCover: {
+					options: {
+						variant: 'MODIS_Terra_NDSI_Snow_Cover',
+						format: 'png',
+						maxZoom: 8,
+						opacity: 0.75
+					}
+				},
+				ModisTerraAOD: {
+					options: {
+						variant: 'MODIS_Terra_Aerosol',
+						format: 'png',
+						maxZoom: 6,
+						opacity: 0.75
+					}
+				},
+				ModisTerraChlorophyll: {
+					options: {
+						variant: 'MODIS_Terra_Chlorophyll_A',
+						format: 'png',
+						maxZoom: 7,
+						opacity: 0.75
+					}
+				}
+			}
+		},
+		NLS: {
+			// NLS maps are copyright National library of Scotland.
+			// http://maps.nls.uk/projects/api/index.html
+			// Please contact NLS for anything other than non-commercial low volume usage
+			//
+			// Map sources: Ordnance Survey 1:1m to 1:63K, 1920s-1940s
+			//   z0-9  - 1:1m
+			//  z10-11 - quarter inch (1:253440)
+			//  z12-18 - one inch (1:63360)
+			url: 'https://nls-{s}.tileserver.com/nls/{z}/{x}/{y}.jpg',
+			options: {
+				attribution: '<a href="http://geo.nls.uk/maps/">National Library of Scotland Historic Maps</a>',
+				bounds: [[49.6, -12], [61.7, 3]],
+				minZoom: 1,
+				maxZoom: 18,
+				subdomains: '0123',
+			}
+		},
+		JusticeMap: {
+			// Justice Map (http://www.justicemap.org/)
+			// Visualize race and income data for your community, county and country.
+			// Includes tools for data journalists, bloggers and community activists.
+			url: 'https://www.justicemap.org/tile/{size}/{variant}/{z}/{x}/{y}.png',
+			options: {
+				attribution: '<a href="http://www.justicemap.org/terms.php">Justice Map</a>',
+				// one of 'county', 'tract', 'block'
+				size: 'county',
+				// Bounds for USA, including Alaska and Hawaii
+				bounds: [[14, -180], [72, -56]]
+			},
+			variants: {
+				income: 'income',
+				americanIndian: 'indian',
+				asian: 'asian',
+				black: 'black',
+				hispanic: 'hispanic',
+				multi: 'multi',
+				nonWhite: 'nonwhite',
+				white: 'white',
+				plurality: 'plural'
+			}
+		},
+		GeoportailFrance: {
+			url: 'https://wxs.ign.fr/{apikey}/geoportail/wmts?REQUEST=GetTile&SERVICE=WMTS&VERSION=1.0.0&STYLE={style}&TILEMATRIXSET=PM&FORMAT={format}&LAYER={variant}&TILEMATRIX={z}&TILEROW={y}&TILECOL={x}',
+			options: {
+				attribution: '<a target="_blank" href="https://www.geoportail.gouv.fr/">Geoportail France</a>',
+				bounds: [[-75, -180], [81, 180]],
+				minZoom: 2,
+				maxZoom: 18,
+				// Get your own geoportail apikey here : http://professionnels.ign.fr/ign/contrats/
+				// NB : 'choisirgeoportail' is a demonstration key that comes with no guarantee
+				apikey: 'choisirgeoportail',
+				format: 'image/png',
+				style: 'normal',
+				variant: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2'
+			},
+			variants: {
+				plan: 'GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2',
+				parcels: {
+					options: {
+						variant: 'CADASTRALPARCELS.PARCELLAIRE_EXPRESS',
+						style: 'PCI vecteur',
+						maxZoom: 20
+					}
+				},
+				orthos: {
+					options: {
+						maxZoom: 19,
+						format: 'image/jpeg',
+						variant: 'ORTHOIMAGERY.ORTHOPHOTOS'
+					}
+				}
+			}
+		},
+		OneMapSG: {
+			url: 'https://maps-{s}.onemap.sg/v3/{variant}/{z}/{x}/{y}.png',
+			options: {
+				variant: 'Default',
+				minZoom: 11,
+				maxZoom: 18,
+				bounds: [[1.56073, 104.11475], [1.16, 103.502]],
+				attribution: '<img src="https://docs.onemap.sg/maps/images/oneMap64-01.png" style="height:20px;width:20px;"/> New OneMap | Map data &copy; contributors, <a href="http://SLA.gov.sg">Singapore Land Authority</a>'
+			},
+			variants: {
+				Default: 'Default',
+				Night: 'Night',
+				Original: 'Original',
+				Grey: 'Grey',
+				LandLot: 'LandLot'
+			}
+		},
+		USGS: {
+			url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile/{z}/{y}/{x}',
+			options: {
+				maxZoom: 20,
+				attribution: 'Tiles courtesy of the <a href="https://usgs.gov/">U.S. Geological Survey</a>'
+			},
+			variants: {
+				USTopo: {},
+				USImagery: {
+					url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile/{z}/{y}/{x}'
+				},
+				USImageryTopo: {
+					url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile/{z}/{y}/{x}'
+				}
+			}
+		},
+		WaymarkedTrails: {
+			url: 'https://tile.waymarkedtrails.org/{variant}/{z}/{x}/{y}.png',
+			options: {
+				maxZoom: 18,
+				attribution: 'Map data: {attribution.OpenStreetMap} | Map style: &copy; <a href="https://waymarkedtrails.org">waymarkedtrails.org</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)'
+			},
+			variants: {
+				hiking: 'hiking',
+				cycling: 'cycling',
+				mtb: 'mtb',
+				slopes: 'slopes',
+				riding: 'riding',
+				skating: 'skating'
+			}
+		},
+		OpenAIP: {
+			url: 'https://{s}.tile.maps.openaip.net/geowebcache/service/tms/1.0.0/openaip_basemap@EPSG%3A900913@png/{z}/{x}/{y}.{ext}',
+			options: {
+				attribution: '<a href="https://www.openaip.net/">openAIP Data</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-NC-SA</a>)',
+				ext: 'png',
+				minZoom: 4,
+				maxZoom: 14,
+				tms: true,
+				detectRetina: true,
+				subdomains: '12'
+			}
+		},
+		OpenSnowMap: {
+			url: 'https://tiles.opensnowmap.org/{variant}/{z}/{x}/{y}.png',
+			options: {
+				minZoom: 9,
+				maxZoom: 18,
+				attribution: 'Map data: {attribution.OpenStreetMap} & ODbL, &copy; <a href="https://www.opensnowmap.org/iframes/data.html">www.opensnowmap.org</a> <a href="https://creativecommons.org/licenses/by-sa/2.0/">CC-BY-SA</a>'
+			},
+			variants: {
+				pistes: 'pistes',
+			}
+		},
+		AzureMaps: {
+			url: 
+				'https://atlas.microsoft.com/map/tile?api-version={apiVersion}'+
+				'&tilesetId={variant}&x={x}&y={y}&zoom={z}&language={language}'+
+				'&subscription-key={subscriptionKey}',
+			options: {
+				attribution: 'See https://docs.microsoft.com/en-us/rest/api/maps/render-v2/get-map-tile for details.',
+				apiVersion: '2.0',
+				variant: 'microsoft.imagery',
+				subscriptionKey: '<insert your subscription key here>',
+				language: 'en-US',
+			},
+			variants: {
+				MicrosoftImagery: 'microsoft.imagery',
+				MicrosoftBaseDarkGrey: 'microsoft.base.darkgrey',
+				MicrosoftBaseRoad: 'microsoft.base.road',
+				MicrosoftBaseHybridRoad: 'microsoft.base.hybrid.road',
+				MicrosoftTerraMain: 'microsoft.terra.main',
+				MicrosoftWeatherInfraredMain: {
+					url: 
+					'https://atlas.microsoft.com/map/tile?api-version={apiVersion}'+
+					'&tilesetId={variant}&x={x}&y={y}&zoom={z}'+
+					'&timeStamp={timeStamp}&language={language}' +
+					'&subscription-key={subscriptionKey}',
+					options: {
+						timeStamp: '2021-05-08T09:03:00Z',
+						attribution: 'See https://docs.microsoft.com/en-us/rest/api/maps/render-v2/get-map-tile#uri-parameters for details.',
+						variant: 'microsoft.weather.infrared.main',
+					},
+				},
+				MicrosoftWeatherRadarMain: {
+					url: 
+					'https://atlas.microsoft.com/map/tile?api-version={apiVersion}'+
+					'&tilesetId={variant}&x={x}&y={y}&zoom={z}'+
+					'&timeStamp={timeStamp}&language={language}' +
+					'&subscription-key={subscriptionKey}',
+					options: {
+						timeStamp: '2021-05-08T09:03:00Z',
+						attribution: 'See https://docs.microsoft.com/en-us/rest/api/maps/render-v2/get-map-tile#uri-parameters for details.',
+						variant: 'microsoft.weather.radar.main',
+					},
+				}
+			},
+		},
+		SwissFederalGeoportal: {
+			url: 'https://wmts.geo.admin.ch/1.0.0/{variant}/default/current/3857/{z}/{x}/{y}.jpeg',
+			options: {
+				attribution: '&copy; <a href="https://www.swisstopo.admin.ch/">swisstopo</a>',
+				minZoom: 2,
+				maxZoom: 18,
+				bounds: [[45.398181, 5.140242], [48.230651, 11.47757]]
+			},
+			variants: {
+				NationalMapColor: 'ch.swisstopo.pixelkarte-farbe',
+				NationalMapGrey: 'ch.swisstopo.pixelkarte-grau',
+				SWISSIMAGE: {
+					options: {
+						variant: 'ch.swisstopo.swissimage',
+						maxZoom: 19
+					}
+				}
+			}
+		}
+	};
+
+	L.tileLayer.provider = function (provider, options) {
+		return new L.TileLayer.Provider(provider, options);
+	};
+
+	return L;
+}));
+</script>
+<script>LeafletWidget.methods.addProviderTiles = function(provider, layerId, group, options) {
+  this.layerManager.addLayer(L.tileLayer.provider(provider, options), "tile", layerId, group);
+};
+</script>
 <script>(()=>{var t={d:(e,n)=>{for(var s in n)t.o(n,s)&&!t.o(e,s)&&Object.defineProperty(e,s,{enumerable:!0,get:n[s]})},o:(t,e)=>Object.prototype.hasOwnProperty.call(t,e),r:t=>{"undefined"!=typeof Symbol&&Symbol.toStringTag&&Object.defineProperty(t,Symbol.toStringTag,{value:"Module"}),Object.defineProperty(t,"__esModule",{value:!0})}},e={};(()=>{"use strict";function n(t){return Array.isArray?Array.isArray(t):"[object Array]"===u(t)}t.r(e),t.d(e,{default:()=>D});const s=1/0;function i(t){return null==t?"":function(t){if("string"==typeof t)return t;let e=t+"";return"0"==e&&1/t==-s?"-0":e}(t)}function r(t){return"string"==typeof t}function c(t){return"number"==typeof t}function o(t){return!0===t||!1===t||function(t){return h(t)&&null!==t}(t)&&"[object Boolean]"==u(t)}function h(t){return"object"==typeof t}function a(t){return null!=t}function l(t){return!t.trim().length}function u(t){return null==t?void 0===t?"[object Undefined]":"[object Null]":Object.prototype.toString.call(t)}const d=t=>`Missing ${t} property in key`,g=t=>`Property 'weight' in key '${t}' must be a positive integer`,f=Object.prototype.hasOwnProperty;class p{constructor(t){this._keys=[],this._keyMap={};let e=0;t.forEach((t=>{let n=m(t);this._keys.push(n),this._keyMap[n.id]=n,e+=n.weight})),this._keys.forEach((t=>{t.weight/=e}))}get(t){return this._keyMap[t]}keys(){return this._keys}toJSON(){return JSON.stringify(this._keys)}}function m(t){let e=null,s=null,i=null,c=1,o=null;if(r(t)||n(t))i=t,e=M(t),s=y(t);else{if(!f.call(t,"name"))throw new Error(d("name"));const n=t.name;if(i=n,f.call(t,"weight")&&(c=t.weight,c<=0))throw new Error(g(n));e=M(n),s=y(n),o=t.getFn}return{path:e,id:s,weight:c,src:i,getFn:o}}function M(t){return n(t)?t:t.split(".")}function y(t){return n(t)?t.join("."):t}var x={isCaseSensitive:!1,includeScore:!1,keys:[],shouldSort:!0,sortFn:(t,e)=>t.score===e.score?t.idx<e.idx?-1:1:t.score<e.score?-1:1,includeMatches:!1,findAllMatches:!1,minMatchCharLength:1,location:0,threshold:.6,distance:100,...{useExtendedSearch:!1,getFn:function(t,e){let s=[],h=!1;const l=(t,e,u)=>{if(a(t))if(e[u]){const d=t[e[u]];if(!a(d))return;if(u===e.length-1&&(r(d)||c(d)||o(d)))s.push(i(d));else if(n(d)){h=!0;for(let t=0,n=d.length;t<n;t+=1)l(d[t],e,u+1)}else e.length&&l(d,e,u+1)}else s.push(t)};return l(t,r(e)?e.split("."):e,0),h?s:s[0]},ignoreLocation:!1,ignoreFieldNorm:!1,fieldNormWeight:1}};const L=/[^ ]+/g;class v{constructor({getFn:t=x.getFn,fieldNormWeight:e=x.fieldNormWeight}={}){this.norm=function(t=1,e=3){const n=new Map,s=Math.pow(10,e);return{get(e){const i=e.match(L).length;if(n.has(i))return n.get(i);const r=1/Math.pow(i,.5*t),c=parseFloat(Math.round(r*s)/s);return n.set(i,c),c},clear(){n.clear()}}}(e,3),this.getFn=t,this.isCreated=!1,this.setIndexRecords()}setSources(t=[]){this.docs=t}setIndexRecords(t=[]){this.records=t}setKeys(t=[]){this.keys=t,this._keysMap={},t.forEach(((t,e)=>{this._keysMap[t.id]=e}))}create(){!this.isCreated&&this.docs.length&&(this.isCreated=!0,r(this.docs[0])?this.docs.forEach(((t,e)=>{this._addString(t,e)})):this.docs.forEach(((t,e)=>{this._addObject(t,e)})),this.norm.clear())}add(t){const e=this.size();r(t)?this._addString(t,e):this._addObject(t,e)}removeAt(t){this.records.splice(t,1);for(let e=t,n=this.size();e<n;e+=1)this.records[e].i-=1}getValueForItemAtKeyId(t,e){return t[this._keysMap[e]]}size(){return this.records.length}_addString(t,e){if(!a(t)||l(t))return;let n={v:t,i:e,n:this.norm.get(t)};this.records.push(n)}_addObject(t,e){let s={i:e,$:{}};this.keys.forEach(((e,i)=>{let c=e.getFn?e.getFn(t):this.getFn(t,e.path);if(a(c))if(n(c)){let t=[];const e=[{nestedArrIndex:-1,value:c}];for(;e.length;){const{nestedArrIndex:s,value:i}=e.pop();if(a(i))if(r(i)&&!l(i)){let e={v:i,i:s,n:this.norm.get(i)};t.push(e)}else n(i)&&i.forEach(((t,n)=>{e.push({nestedArrIndex:n,value:t})}))}s.$[i]=t}else if(r(c)&&!l(c)){let t={v:c,n:this.norm.get(c)};s.$[i]=t}})),this.records.push(s)}toJSON(){return{keys:this.keys,records:this.records}}}function _(t,e,{getFn:n=x.getFn,fieldNormWeight:s=x.fieldNormWeight}={}){const i=new v({getFn:n,fieldNormWeight:s});return i.setKeys(t.map(m)),i.setSources(e),i.create(),i}function k(t,{errors:e=0,currentLocation:n=0,expectedLocation:s=0,distance:i=x.distance,ignoreLocation:r=x.ignoreLocation}={}){const c=e/t.length;if(r)return c;const o=Math.abs(s-n);return i?c+o/i:o?1:c}const S=32;function b(t,e,n,{location:s=x.location,distance:i=x.distance,threshold:r=x.threshold,findAllMatches:c=x.findAllMatches,minMatchCharLength:o=x.minMatchCharLength,includeMatches:h=x.includeMatches,ignoreLocation:a=x.ignoreLocation}={}){if(e.length>S)throw new Error(`Pattern length exceeds max of ${S}.`);const l=e.length,u=t.length,d=Math.max(0,Math.min(s,u));let g=r,f=d;const p=o>1||h,m=p?Array(u):[];let M;for(;(M=t.indexOf(e,f))>-1;){let t=k(e,{currentLocation:M,expectedLocation:d,distance:i,ignoreLocation:a});if(g=Math.min(t,g),f=M+l,p){let t=0;for(;t<l;)m[M+t]=1,t+=1}}f=-1;let y=[],L=1,v=l+u;const _=1<<l-1;for(let s=0;s<l;s+=1){let r=0,o=v;for(;r<o;){k(e,{errors:s,currentLocation:d+o,expectedLocation:d,distance:i,ignoreLocation:a})<=g?r=o:v=o,o=Math.floor((v-r)/2+r)}v=o;let h=Math.max(1,d-o+1),M=c?u:Math.min(d+o,u)+l,x=Array(M+2);x[M+1]=(1<<s)-1;for(let r=M;r>=h;r-=1){let c=r-1,o=n[t.charAt(c)];if(p&&(m[c]=+!!o),x[r]=(x[r+1]<<1|1)&o,s&&(x[r]|=(y[r+1]|y[r])<<1|1|y[r+1]),x[r]&_&&(L=k(e,{errors:s,currentLocation:c,expectedLocation:d,distance:i,ignoreLocation:a}),L<=g)){if(g=L,f=c,f<=d)break;h=Math.max(1,2*d-f)}}if(k(e,{errors:s+1,currentLocation:d,expectedLocation:d,distance:i,ignoreLocation:a})>g)break;y=x}const b={isMatch:f>=0,score:Math.max(.001,L)};if(p){const t=function(t=[],e=x.minMatchCharLength){let n=[],s=-1,i=-1,r=0;for(let c=t.length;r<c;r+=1){let c=t[r];c&&-1===s?s=r:c||-1===s||(i=r-1,i-s+1>=e&&n.push([s,i]),s=-1)}return t[r-1]&&r-s>=e&&n.push([s,r-1]),n}(m,o);t.length?h&&(b.indices=t):b.isMatch=!1}return b}function w(t){let e={};for(let n=0,s=t.length;n<s;n+=1){const i=t.charAt(n);e[i]=(e[i]||0)|1<<s-n-1}return e}class C{constructor(t,{location:e=x.location,threshold:n=x.threshold,distance:s=x.distance,includeMatches:i=x.includeMatches,findAllMatches:r=x.findAllMatches,minMatchCharLength:c=x.minMatchCharLength,isCaseSensitive:o=x.isCaseSensitive,ignoreLocation:h=x.ignoreLocation}={}){if(this.options={location:e,threshold:n,distance:s,includeMatches:i,findAllMatches:r,minMatchCharLength:c,isCaseSensitive:o,ignoreLocation:h},this.pattern=o?t:t.toLowerCase(),this.chunks=[],!this.pattern.length)return;const a=(t,e)=>{this.chunks.push({pattern:t,alphabet:w(t),startIndex:e})},l=this.pattern.length;if(l>S){let t=0;const e=l%S,n=l-e;for(;t<n;)a(this.pattern.substr(t,S),t),t+=S;if(e){const t=l-S;a(this.pattern.substr(t),t)}}else a(this.pattern,0)}searchIn(t){const{isCaseSensitive:e,includeMatches:n}=this.options;if(e||(t=t.toLowerCase()),this.pattern===t){let e={isMatch:!0,score:0};return n&&(e.indices=[[0,t.length-1]]),e}const{location:s,distance:i,threshold:r,findAllMatches:c,minMatchCharLength:o,ignoreLocation:h}=this.options;let a=[],l=0,u=!1;this.chunks.forEach((({pattern:e,alphabet:d,startIndex:g})=>{const{isMatch:f,score:p,indices:m}=b(t,e,d,{location:s+g,distance:i,threshold:r,findAllMatches:c,minMatchCharLength:o,includeMatches:n,ignoreLocation:h});f&&(u=!0),l+=p,f&&m&&(a=[...a,...m])}));let d={isMatch:u,score:u?l/this.chunks.length:1};return u&&n&&(d.indices=a),d}}class I{constructor(t){this.pattern=t}static isMultiMatch(t){return $(t,this.multiRegex)}static isSingleMatch(t){return $(t,this.singleRegex)}search(){}}function $(t,e){const n=t.match(e);return n?n[1]:null}class A extends I{constructor(t,{location:e=x.location,threshold:n=x.threshold,distance:s=x.distance,includeMatches:i=x.includeMatches,findAllMatches:r=x.findAllMatches,minMatchCharLength:c=x.minMatchCharLength,isCaseSensitive:o=x.isCaseSensitive,ignoreLocation:h=x.ignoreLocation}={}){super(t),this._bitapSearch=new C(t,{location:e,threshold:n,distance:s,includeMatches:i,findAllMatches:r,minMatchCharLength:c,isCaseSensitive:o,ignoreLocation:h})}static get type(){return"fuzzy"}static get multiRegex(){return/^"(.*)"$/}static get singleRegex(){return/^(.*)$/}search(t){return this._bitapSearch.searchIn(t)}}class E extends I{constructor(t){super(t)}static get type(){return"include"}static get multiRegex(){return/^'"(.*)"$/}static get singleRegex(){return/^'(.*)$/}search(t){let e,n=0;const s=[],i=this.pattern.length;for(;(e=t.indexOf(this.pattern,n))>-1;)n=e+i,s.push([e,n-1]);const r=!!s.length;return{isMatch:r,score:r?0:1,indices:s}}}const F=[class extends I{constructor(t){super(t)}static get type(){return"exact"}static get multiRegex(){return/^="(.*)"$/}static get singleRegex(){return/^=(.*)$/}search(t){const e=t===this.pattern;return{isMatch:e,score:e?0:1,indices:[0,this.pattern.length-1]}}},E,class extends I{constructor(t){super(t)}static get type(){return"prefix-exact"}static get multiRegex(){return/^\^"(.*)"$/}static get singleRegex(){return/^\^(.*)$/}search(t){const e=t.startsWith(this.pattern);return{isMatch:e,score:e?0:1,indices:[0,this.pattern.length-1]}}},class extends I{constructor(t){super(t)}static get type(){return"inverse-prefix-exact"}static get multiRegex(){return/^!\^"(.*)"$/}static get singleRegex(){return/^!\^(.*)$/}search(t){const e=!t.startsWith(this.pattern);return{isMatch:e,score:e?0:1,indices:[0,t.length-1]}}},class extends I{constructor(t){super(t)}static get type(){return"inverse-suffix-exact"}static get multiRegex(){return/^!"(.*)"\$$/}static get singleRegex(){return/^!(.*)\$$/}search(t){const e=!t.endsWith(this.pattern);return{isMatch:e,score:e?0:1,indices:[0,t.length-1]}}},class extends I{constructor(t){super(t)}static get type(){return"suffix-exact"}static get multiRegex(){return/^"(.*)"\$$/}static get singleRegex(){return/^(.*)\$$/}search(t){const e=t.endsWith(this.pattern);return{isMatch:e,score:e?0:1,indices:[t.length-this.pattern.length,t.length-1]}}},class extends I{constructor(t){super(t)}static get type(){return"inverse-exact"}static get multiRegex(){return/^!"(.*)"$/}static get singleRegex(){return/^!(.*)$/}search(t){const e=-1===t.indexOf(this.pattern);return{isMatch:e,score:e?0:1,indices:[0,t.length-1]}}},A],N=F.length,O=/ +(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/;const R=new Set([A.type,E.type]);class j{constructor(t,{isCaseSensitive:e=x.isCaseSensitive,includeMatches:n=x.includeMatches,minMatchCharLength:s=x.minMatchCharLength,ignoreLocation:i=x.ignoreLocation,findAllMatches:r=x.findAllMatches,location:c=x.location,threshold:o=x.threshold,distance:h=x.distance}={}){this.query=null,this.options={isCaseSensitive:e,includeMatches:n,minMatchCharLength:s,findAllMatches:r,ignoreLocation:i,location:c,threshold:o,distance:h},this.pattern=e?t:t.toLowerCase(),this.query=function(t,e={}){return t.split("|").map((t=>{let n=t.trim().split(O).filter((t=>t&&!!t.trim())),s=[];for(let t=0,i=n.length;t<i;t+=1){const i=n[t];let r=!1,c=-1;for(;!r&&++c<N;){const t=F[c];let n=t.isMultiMatch(i);n&&(s.push(new t(n,e)),r=!0)}if(!r)for(c=-1;++c<N;){const t=F[c];let n=t.isSingleMatch(i);if(n){s.push(new t(n,e));break}}}return s}))}(this.pattern,this.options)}static condition(t,e){return e.useExtendedSearch}searchIn(t){const e=this.query;if(!e)return{isMatch:!1,score:1};const{includeMatches:n,isCaseSensitive:s}=this.options;t=s?t:t.toLowerCase();let i=0,r=[],c=0;for(let s=0,o=e.length;s<o;s+=1){const o=e[s];r.length=0,i=0;for(let e=0,s=o.length;e<s;e+=1){const s=o[e],{isMatch:h,indices:a,score:l}=s.search(t);if(!h){c=0,i=0,r.length=0;break}if(i+=1,c+=l,n){const t=s.constructor.type;R.has(t)?r=[...r,...a]:r.push(a)}}if(i){let t={isMatch:!0,score:c/i};return n&&(t.indices=r),t}}return{isMatch:!1,score:1}}}const W=[];function P(t,e){for(let n=0,s=W.length;n<s;n+=1){let s=W[n];if(s.condition(t,e))return new s(t,e)}return new C(t,e)}const z="$and",K="$or",q="$path",J="$val",T=t=>!(!t[z]&&!t[K]),V=t=>({[z]:Object.keys(t).map((e=>({[e]:t[e]})))});function B(t,e,{auto:s=!0}={}){const i=t=>{let c=Object.keys(t);const o=(t=>!!t[q])(t);if(!o&&c.length>1&&!T(t))return i(V(t));if((t=>!n(t)&&h(t)&&!T(t))(t)){const n=o?t[q]:c[0],i=o?t[J]:t[n];if(!r(i))throw new Error((t=>`Invalid value for key ${t}`)(n));const h={keyId:y(n),pattern:i};return s&&(h.searcher=P(i,e)),h}let a={children:[],operator:c[0]};return c.forEach((e=>{const s=t[e];n(s)&&s.forEach((t=>{a.children.push(i(t))}))})),a};return T(t)||(t=V(t)),i(t)}function Q(t,e){const n=t.matches;e.matches=[],a(n)&&n.forEach((t=>{if(!a(t.indices)||!t.indices.length)return;const{indices:n,value:s}=t;let i={indices:n,value:s};t.key&&(i.key=t.key.src),t.idx>-1&&(i.refIndex=t.idx),e.matches.push(i)}))}function U(t,e){e.score=t.score}class D{constructor(t,e={},n){this.options={...x,...e},this.options.useExtendedSearch,this._keyStore=new p(this.options.keys),this.setCollection(t,n)}setCollection(t,e){if(this._docs=t,e&&!(e instanceof v))throw new Error("Incorrect 'index' type");this._myIndex=e||_(this.options.keys,this._docs,{getFn:this.options.getFn,fieldNormWeight:this.options.fieldNormWeight})}add(t){a(t)&&(this._docs.push(t),this._myIndex.add(t))}remove(t=(()=>!1)){const e=[];for(let n=0,s=this._docs.length;n<s;n+=1){const i=this._docs[n];t(i,n)&&(this.removeAt(n),n-=1,s-=1,e.push(i))}return e}removeAt(t){this._docs.splice(t,1),this._myIndex.removeAt(t)}getIndex(){return this._myIndex}search(t,{limit:e=-1}={}){const{includeMatches:n,includeScore:s,shouldSort:i,sortFn:o,ignoreFieldNorm:h}=this.options;let a=r(t)?r(this._docs[0])?this._searchStringList(t):this._searchObjectList(t):this._searchLogical(t);return function(t,{ignoreFieldNorm:e=x.ignoreFieldNorm}){t.forEach((t=>{let n=1;t.matches.forEach((({key:t,norm:s,score:i})=>{const r=t?t.weight:null;n*=Math.pow(0===i&&r?Number.EPSILON:i,(r||1)*(e?1:s))})),t.score=n}))}(a,{ignoreFieldNorm:h}),i&&a.sort(o),c(e)&&e>-1&&(a=a.slice(0,e)),function(t,e,{includeMatches:n=x.includeMatches,includeScore:s=x.includeScore}={}){const i=[];return n&&i.push(Q),s&&i.push(U),t.map((t=>{const{idx:n}=t,s={item:e[n],refIndex:n};return i.length&&i.forEach((e=>{e(t,s)})),s}))}(a,this._docs,{includeMatches:n,includeScore:s})}_searchStringList(t){const e=P(t,this.options),{records:n}=this._myIndex,s=[];return n.forEach((({v:t,i:n,n:i})=>{if(!a(t))return;const{isMatch:r,score:c,indices:o}=e.searchIn(t);r&&s.push({item:t,idx:n,matches:[{score:c,value:t,norm:i,indices:o}]})})),s}_searchLogical(t){const e=B(t,this.options),n=(t,e,s)=>{if(!t.children){const{keyId:n,searcher:i}=t,r=this._findMatches({key:this._keyStore.get(n),value:this._myIndex.getValueForItemAtKeyId(e,n),searcher:i});return r&&r.length?[{idx:s,item:e,matches:r}]:[]}const i=[];for(let r=0,c=t.children.length;r<c;r+=1){const c=t.children[r],o=n(c,e,s);if(o.length)i.push(...o);else if(t.operator===z)return[]}return i},s=this._myIndex.records,i={},r=[];return s.forEach((({$:t,i:s})=>{if(a(t)){let c=n(e,t,s);c.length&&(i[s]||(i[s]={idx:s,item:t,matches:[]},r.push(i[s])),c.forEach((({matches:t})=>{i[s].matches.push(...t)})))}})),r}_searchObjectList(t){const e=P(t,this.options),{keys:n,records:s}=this._myIndex,i=[];return s.forEach((({$:t,i:s})=>{if(!a(t))return;let r=[];n.forEach(((n,s)=>{r.push(...this._findMatches({key:n,value:t[s],searcher:e}))})),r.length&&i.push({idx:s,item:t,matches:r})})),i}_findMatches({key:t,value:e,searcher:s}){if(!a(e))return[];let i=[];if(n(e))e.forEach((({v:e,i:n,n:r})=>{if(!a(e))return;const{isMatch:c,score:o,indices:h}=s.searchIn(e);c&&i.push({score:o,key:t,value:e,idx:n,norm:r,indices:h})}));else{const{v:n,n:r}=e,{isMatch:c,score:o,indices:h}=s.searchIn(n);c&&i.push({score:o,key:t,value:n,norm:r,indices:h})}return i}}D.version="7.0.0",D.createIndex=_,D.parseIndex=function(t,{getFn:e=x.getFn,fieldNormWeight:n=x.fieldNormWeight}={}){const{keys:s,records:i}=t,r=new v({getFn:e,fieldNormWeight:n});return r.setKeys(s),r.setIndexRecords(i),r},D.config=x,D.parseQuery=B,function(...t){W.push(...t)}(j)})(),Fuse=e})();</script>
 <style type="text/css">.leaflet-container .leaflet-control-search{background:#fff;background-clip:padding-box;background-color:hsla(0,0%,100%,.8);border:2px solid rgba(0,0,0,.2);-moz-border-radius:4px;-webkit-border-radius:4px;border-radius:4px;color:#1978cf;float:left;margin-left:10px;margin-top:10px;position:relative;z-index:1000}.leaflet-control-search.search-exp{background:#fff;background-clip:padding-box;border:2px solid rgba(0,0,0,.2)}.leaflet-control-search .search-input{background:#fff;border:1px solid #666;border-radius:2px;display:block;float:left;height:22px;margin:4px 0 4px 4px;padding:0 20px 0 2px}.leaflet-control-search.search-load .search-input{background:url(data:image/gif;base64,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) no-repeat 100% #fff}.leaflet-control-search.search-load .search-cancel{visibility:hidden}.leaflet-control-search .search-cancel{background:url(data:image/png;base64,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) no-repeat 0 -46px;display:block;filter:alpha(opacity=80);height:22px;margin:6px 0;opacity:.8;position:absolute;right:28px;text-decoration:none;width:22px}.leaflet-control-search .search-cancel:hover{filter:alpha(opacity=100);opacity:1}.leaflet-control-search .search-cancel span{color:#ccc;display:none;font-size:18px;font-weight:700;line-height:20px}.leaflet-control-search .search-cancel:hover span{color:#aaa}.leaflet-control-search .search-button{background:url(data:image/png;base64,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) no-repeat 4px 4px #fff;border-radius:4px;display:block;float:left;height:30px;width:30px}.leaflet-control-search .search-button:hover{background:url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAABGCAYAAADMz7TxAAAKQ2lDQ1BJQ0MgcHJvZmlsZQAAeNqdU3dYk/cWPt/3ZQ9WQtjwsZdsgQAiI6wIyBBZohCSAGGEEBJAxYWIClYUFRGcSFXEgtUKSJ2I4qAouGdBiohai1VcOO4f3Ke1fXrv7e371/u855zn/M55zw+AERImkeaiagA5UoU8Otgfj09IxMm9gAIVSOAEIBDmy8JnBcUAAPADeXh+dLA//AGvbwACAHDVLiQSx+H/g7pQJlcAIJEA4CIS5wsBkFIAyC5UyBQAyBgAsFOzZAoAlAAAbHl8QiIAqg0A7PRJPgUA2KmT3BcA2KIcqQgAjQEAmShHJAJAuwBgVYFSLALAwgCgrEAiLgTArgGAWbYyRwKAvQUAdo5YkA9AYACAmUIszAAgOAIAQx4TzQMgTAOgMNK/4KlfcIW4SAEAwMuVzZdL0jMUuJXQGnfy8ODiIeLCbLFCYRcpEGYJ5CKcl5sjE0jnA0zODAAAGvnRwf44P5Dn5uTh5mbnbO/0xaL+a/BvIj4h8d/+vIwCBAAQTs/v2l/l5dYDcMcBsHW/a6lbANpWAGjf+V0z2wmgWgrQevmLeTj8QB6eoVDIPB0cCgsL7SViob0w44s+/zPhb+CLfvb8QB7+23rwAHGaQJmtwKOD/XFhbnauUo7nywRCMW735yP+x4V//Y4p0eI0sVwsFYrxWIm4UCJNx3m5UpFEIcmV4hLpfzLxH5b9CZN3DQCshk/ATrYHtctswH7uAQKLDljSdgBAfvMtjBoLkQAQZzQyefcAAJO/+Y9AKwEAzZek4wAAvOgYXKiUF0zGCAAARKCBKrBBBwzBFKzADpzBHbzAFwJhBkRADCTAPBBCBuSAHAqhGJZBGVTAOtgEtbADGqARmuEQtMExOA3n4BJcgetwFwZgGJ7CGLyGCQRByAgTYSE6iBFijtgizggXmY4EImFINJKApCDpiBRRIsXIcqQCqUJqkV1II/ItchQ5jVxA+pDbyCAyivyKvEcxlIGyUQPUAnVAuagfGorGoHPRdDQPXYCWomvRGrQePYC2oqfRS+h1dAB9io5jgNExDmaM2WFcjIdFYIlYGibHFmPlWDVWjzVjHVg3dhUbwJ5h7wgkAouAE+wIXoQQwmyCkJBHWExYQ6gl7CO0EroIVwmDhDHCJyKTqE+0JXoS+cR4YjqxkFhGrCbuIR4hniVeJw4TX5NIJA7JkuROCiElkDJJC0lrSNtILaRTpD7SEGmcTCbrkG3J3uQIsoCsIJeRt5APkE+S+8nD5LcUOsWI4kwJoiRSpJQSSjVlP+UEpZ8yQpmgqlHNqZ7UCKqIOp9aSW2gdlAvU4epEzR1miXNmxZDy6Qto9XQmmlnafdoL+l0ugndgx5Fl9CX0mvoB+nn6YP0dwwNhg2Dx0hiKBlrGXsZpxi3GS+ZTKYF05eZyFQw1zIbmWeYD5hvVVgq9ip8FZHKEpU6lVaVfpXnqlRVc1U/1XmqC1SrVQ+rXlZ9pkZVs1DjqQnUFqvVqR1Vu6k2rs5Sd1KPUM9RX6O+X/2C+mMNsoaFRqCGSKNUY7fGGY0hFsYyZfFYQtZyVgPrLGuYTWJbsvnsTHYF+xt2L3tMU0NzqmasZpFmneZxzQEOxrHg8DnZnErOIc4NznstAy0/LbHWaq1mrX6tN9p62r7aYu1y7Rbt69rvdXCdQJ0snfU6bTr3dQm6NrpRuoW623XP6j7TY+t56Qn1yvUO6d3RR/Vt9KP1F+rv1u/RHzcwNAg2kBlsMThj8MyQY+hrmGm40fCE4agRy2i6kcRoo9FJoye4Ju6HZ+M1eBc+ZqxvHGKsNN5l3Gs8YWJpMtukxKTF5L4pzZRrmma60bTTdMzMyCzcrNisyeyOOdWca55hvtm82/yNhaVFnMVKizaLx5balnzLBZZNlvesmFY+VnlW9VbXrEnWXOss623WV2xQG1ebDJs6m8u2qK2brcR2m23fFOIUjynSKfVTbtox7PzsCuya7AbtOfZh9iX2bfbPHcwcEh3WO3Q7fHJ0dcx2bHC866ThNMOpxKnD6VdnG2ehc53zNRemS5DLEpd2lxdTbaeKp26fesuV5RruutK10/Wjm7ub3K3ZbdTdzD3Ffav7TS6bG8ldwz3vQfTw91jicczjnaebp8LzkOcvXnZeWV77vR5Ps5wmntYwbcjbxFvgvct7YDo+PWX6zukDPsY+Ap96n4e+pr4i3z2+I37Wfpl+B/ye+zv6y/2P+L/hefIW8U4FYAHBAeUBvYEagbMDawMfBJkEpQc1BY0FuwYvDD4VQgwJDVkfcpNvwBfyG/ljM9xnLJrRFcoInRVaG/owzCZMHtYRjobPCN8Qfm+m+UzpzLYIiOBHbIi4H2kZmRf5fRQpKjKqLupRtFN0cXT3LNas5Fn7Z72O8Y+pjLk722q2cnZnrGpsUmxj7Ju4gLiquIF4h/hF8ZcSdBMkCe2J5MTYxD2J43MC52yaM5zkmlSWdGOu5dyiuRfm6c7Lnnc8WTVZkHw4hZgSl7I/5YMgQlAvGE/lp25NHRPyhJuFT0W+oo2iUbG3uEo8kuadVpX2ON07fUP6aIZPRnXGMwlPUit5kRmSuSPzTVZE1t6sz9lx2S05lJyUnKNSDWmWtCvXMLcot09mKyuTDeR55m3KG5OHyvfkI/lz89sVbIVM0aO0Uq5QDhZML6greFsYW3i4SL1IWtQz32b+6vkjC4IWfL2QsFC4sLPYuHhZ8eAiv0W7FiOLUxd3LjFdUrpkeGnw0n3LaMuylv1Q4lhSVfJqedzyjlKD0qWlQyuCVzSVqZTJy26u9Fq5YxVhlWRV72qX1VtWfyoXlV+scKyorviwRrjm4ldOX9V89Xlt2treSrfK7etI66Trbqz3Wb+vSr1qQdXQhvANrRvxjeUbX21K3nShemr1js20zcrNAzVhNe1bzLas2/KhNqP2ep1/XctW/a2rt77ZJtrWv913e/MOgx0VO97vlOy8tSt4V2u9RX31btLugt2PGmIbur/mft24R3dPxZ6Pe6V7B/ZF7+tqdG9s3K+/v7IJbVI2jR5IOnDlm4Bv2pvtmne1cFoqDsJB5cEn36Z8e+NQ6KHOw9zDzd+Zf7f1COtIeSvSOr91rC2jbaA9ob3v6IyjnR1eHUe+t/9+7zHjY3XHNY9XnqCdKD3x+eSCk+OnZKeenU4/PdSZ3Hn3TPyZa11RXb1nQ8+ePxd07ky3X/fJ897nj13wvHD0Ivdi2yW3S609rj1HfnD94UivW2/rZffL7Vc8rnT0Tes70e/Tf/pqwNVz1/jXLl2feb3vxuwbt24m3Ry4Jbr1+Hb27Rd3Cu5M3F16j3iv/L7a/eoH+g/qf7T+sWXAbeD4YMBgz8NZD+8OCYee/pT/04fh0kfMR9UjRiONj50fHxsNGr3yZM6T4aeypxPPyn5W/3nrc6vn3/3i+0vPWPzY8Av5i8+/rnmp83Lvq6mvOscjxx+8znk98ab8rc7bfe+477rfx70fmSj8QP5Q89H6Y8en0E/3Pud8/vwv94Tz+4A5JREAAAAGYktHRAD/AP8A/6C9p5MAAAAJcEhZcwAAD2EAAA9hAag/p2kAAAAHdElNRQfdCR0OKzSQTWy0AAAEPElEQVRYw+2XXWhbZRjHf8vH7I6b2eqihLItXYgKTfuCClurOMUJboIyGV75gkLdja43IujFELxwV8KYV0KFwXsh+AHiTZkoohYUHGM7S4c2ZongPFvjUk+1J93apN48iYf0JP0wiBd5IOTkPe/7f77+z/mfwP/dNrW5dxtwF9Ajv6vAdWB+vYBRYBA4AowAO2XfPHAe+BSYBCprjfo54FvgJnALmAGuAX8BNaAAvAFsCzoc9l2HgAPAW8CDwI/AOHAG+Ay4CGwG7gMGABe4IE4CbSfwvkQ1CTwFRJoc3g98ACzKnky7VB8DikAZGJWmBNlBib4CvNzch5DvejewHbgCfCM1DLLvgB+k+7t9LFgBGBVvLrDQJpN5YK7pTCDgonzvaNVBsW2yx38mEPBnYBZIAU+I9yDejgD7pIZXAK+V5+3S5YpQ5Blgqy+lHmA/8JFMzTlgqB0PF6TDGaHHPiAJ9Ar3jgCvSJdD8imsxsUQcBj4HPhDanTTNzUeUJL1GjANvADcHhQhwLLU5ZwcXJauX5NoPpGULWCvDEMG+FMiXW5H9ChwJ9AvjUrI6G0CHgbOSuQ14Cd5Bvwre1RKUxNevkrTrK7XvpZausBvwMd0rWsd1mWtdaAuG2PWp8ta6zXpsjGmspqMAqCUOgq8KbO5R2baAnaJg0eAqFLqom3bt1pGqLUOyeZ3AAVclmiyMmJ7RVr3A78DbwPjxpglP6B/lnsBLel+D5wEztYPiMOvgNeAo8Dzos3ZVpoyCDwurxxngC/83o0xNWPMeZGJPPAAcEBrvTZdNsb8N7ostOmcLmutN6bLwsdmsBW6bIzxWgFOAV+KbrwIHNZab60XXWvdI0CjIq+XpZ7BxLZte0EpFajLSqmWuqyUumDbdi1wUpRSvwIOcDeQBoaBp4FnhfRxachmqfO9gKuUytm2vbgC0LbtZaXUhnRZIl1u97SJAnfIJyRvDTeksw8BJ0RKo0AOOGGM+TDShm+LAnAj4Pak1vqkcPCgvATs6upy1zopo8VioW+2XD7uuu4hz/OGgAXLsqZjsdjEjt7ed5PJ/qtrBsxmLx1zHOeU53lbgg5YllVJJBJjmczg+KqA2eylY78Ui+8tVatt04qEw+xJJl8KAg3503Qc51QdLB6PrwCqry1VqziOc7pYLPS1BJwtl8fqacbjcYaHRxgY+Off68BAhuHhkQao53lbZsvl4yuir1+4rvtk/bpUKpHP50mlUo2NqVSKfD5PqVTCd+YQ8HogoOd59/hvTE1lG0AA+Xy+sdbqTLOmdMQiPjpMu3NzQ/6a1dP0R+qP0rKs6ZaAsVhsog4Yj8cbYH6AVCrFzMz1Rh1jsdhESx4Wi4W+XC6X83fa34DmNcuyKul0Ot08NY0aJpP9VxOJxFgkHG50utnqa5FwmEQiMRY0gkGjN+o4zumOjF4nHg5d69oG7G9LxrhhWXdE7gAAAABJRU5ErkJggg==) no-repeat 4px -20px #fafafa}.leaflet-control-search .search-tooltip{background-color:rgba(0,0,0,.25);box-shadow:1px 1px 6px rgba(0,0,0,.4);cursor:pointer;float:left;left:0;list-style:none;max-height:122px;min-width:120px;overflow-x:hidden;overflow-y:auto;padding-left:0;position:absolute;top:100%;z-index:1010}.leaflet-control-search .search-tip{background:#eee;border-radius:.25em;color:#000;display:block;margin:2px;padding:2px 4px;text-decoration:none;vertical-align:center;white-space:nowrap}.leaflet-control-search .search-button:hover{background-color:#f4f4f4}.leaflet-control-search .search-tip-select,.leaflet-control-search .search-tip:hover{background-color:#fff}.leaflet-control-search .search-alert{border-radius:.25em;clear:both;color:#e00;cursor:pointer;font-size:.75em;font-weight:700;margin-bottom:5px;padding:0 .25em}</style>
 <script>(()=>{var t={844:(t,e,i)=>{var o,s,n;s=[i(525)],void 0===(n="function"==typeof(o=function(t){return t.Control.Search=t.Control.extend({includes:"1"===t.version[0]?t.Evented.prototype:t.Mixin.Events,options:{url:"",layer:null,sourceData:null,jsonpParam:null,propertyLoc:"loc",propertyName:"title",formatData:null,filterData:null,moveToLocation:null,buildTip:null,container:"",zoom:null,minLength:1,initial:!0,casesensitive:!1,autoType:!0,delayType:400,tooltipLimit:-1,tipAutoSubmit:!0,firstTipSubmit:!1,autoResize:!0,collapsed:!0,autoCollapse:!1,autoCollapseTime:1200,textErr:"Location not found",textCancel:"Cancel",textPlaceholder:"Search...",hideMarkerOnCollapse:!1,position:"topleft",marker:{icon:!1,animate:!0,circle:{radius:10,weight:3,color:"#e03",stroke:!0,fill:!1}}},_getPath:function(t,e){var i=e.split("."),o=i.pop(),s=i.length,n=i[0],r=1;if(s>0)for(;(t=t[n])&&r<s;)n=i[r++];if(t)return t[o]},_isObject:function(t){return"[object Object]"===Object.prototype.toString.call(t)},initialize:function(e){t.Util.setOptions(this,e||{}),this._inputMinSize=this.options.textPlaceholder?this.options.textPlaceholder.length:10,this._layer=this.options.layer||new t.LayerGroup,this._filterData=this.options.filterData||this._defaultFilterData,this._formatData=this.options.formatData||this._defaultFormatData,this._moveToLocation=this.options.moveToLocation||this._defaultMoveToLocation,this._autoTypeTmp=this.options.autoType,this._countertips=0,this._recordsCache={},this._curReq=null},onAdd:function(e){return this._map=e,this._container=t.DomUtil.create("div","leaflet-control-search"),this._input=this._createInput(this.options.textPlaceholder,"search-input"),this._tooltip=this._createTooltip("search-tooltip"),this._cancel=this._createCancel(this.options.textCancel,"search-cancel"),this._button=this._createButton(this.options.textPlaceholder,"search-button"),this._alert=this._createAlert("search-alert"),!1===this.options.collapsed&&this.expand(this.options.collapsed),this.options.marker&&(this.options.marker instanceof t.Marker||this.options.marker instanceof t.CircleMarker?this._markerSearch=this.options.marker:this._isObject(this.options.marker)&&(this._markerSearch=new t.Control.Search.Marker([0,0],this.options.marker)),this._markerSearch._isMarkerSearch=!0),this.setLayer(this._layer),e.on({resize:this._handleAutoresize},this),this._container},addTo:function(e){return this.options.container?(this._container=this.onAdd(e),this._wrapper=t.DomUtil.get(this.options.container),this._wrapper.style.position="relative",this._wrapper.appendChild(this._container)):t.Control.prototype.addTo.call(this,e),this},onRemove:function(t){this._recordsCache={},t.off({resize:this._handleAutoresize},this)},setLayer:function(t){return this._layer=t,this._layer.addTo(this._map),this},showAlert:function(t){var e=this;return t=t||this.options.textErr,this._alert.style.display="block",this._alert.innerHTML=t,clearTimeout(this.timerAlert),this.timerAlert=setTimeout((function(){e.hideAlert()}),this.options.autoCollapseTime),this},hideAlert:function(){return this._alert.style.display="none",this},cancel:function(){return this._input.value="",this._handleKeypress({keyCode:8}),this._input.size=this._inputMinSize,this._input.focus(),this._cancel.style.display="none",this._hideTooltip(),this.fire("search:cancel"),this},expand:function(e){return e="boolean"!=typeof e||e,this._input.style.display="block",t.DomUtil.addClass(this._container,"search-exp"),!1!==e&&(this._input.focus(),this._map.on("dragstart click",this.collapse,this)),this.fire("search:expanded"),this},collapse:function(){return this._hideTooltip(),this.cancel(),this._alert.style.display="none",this._input.blur(),this.options.collapsed&&(this._input.style.display="none",this._cancel.style.display="none",t.DomUtil.removeClass(this._container,"search-exp"),this.options.hideMarkerOnCollapse&&this._map.removeLayer(this._markerSearch),this._map.off("dragstart click",this.collapse,this)),this.fire("search:collapsed"),this},collapseDelayed:function(){var t=this;return this.options.autoCollapse?(clearTimeout(this.timerCollapse),this.timerCollapse=setTimeout((function(){t.collapse()}),this.options.autoCollapseTime),this):this},collapseDelayedStop:function(){return clearTimeout(this.timerCollapse),this},_createAlert:function(e){var i=t.DomUtil.create("div",e,this._container);return i.style.display="none",t.DomEvent.on(i,"click",t.DomEvent.stop,this).on(i,"click",this.hideAlert,this),i},_createInput:function(e,i){var o=this,s=t.DomUtil.create("label",i,this._container),n=t.DomUtil.create("input",i,this._container);return n.type="text",n.size=this._inputMinSize,n.value="",n.autocomplete="off",n.autocorrect="off",n.autocapitalize="off",n.placeholder=e,n.style.display="none",n.role="search",n.id=n.role+n.type+n.size,s.htmlFor=n.id,s.style.display="none",s.value=e,t.DomEvent.disableClickPropagation(n).on(n,"keyup",this._handleKeypress,this).on(n,"paste",(function(t){setTimeout((function(t){o._handleKeypress(t)}),10,t)}),this).on(n,"blur",this.collapseDelayed,this).on(n,"focus",this.collapseDelayedStop,this),n},_createCancel:function(e,i){var o=t.DomUtil.create("a",i,this._container);return o.href="#",o.title=e,o.style.display="none",o.innerHTML="<span>&otimes;</span>",t.DomEvent.on(o,"click",t.DomEvent.stop,this).on(o,"click",this.cancel,this),o},_createButton:function(e,i){var o=t.DomUtil.create("a",i,this._container);return o.href="#",o.title=e,t.DomEvent.on(o,"click",t.DomEvent.stop,this).on(o,"click",this._handleSubmit,this).on(o,"focus",this.collapseDelayedStop,this).on(o,"blur",this.collapseDelayed,this),o},_createTooltip:function(e){var i=this,o=t.DomUtil.create("ul",e,this._container);return o.style.display="none",t.DomEvent.disableClickPropagation(o).on(o,"blur",this.collapseDelayed,this).on(o,"wheel",(function(e){i.collapseDelayedStop(),t.DomEvent.stopPropagation(e)}),this).on(o,"mouseover",(function(t){i.collapseDelayedStop()}),this),o},_createTip:function(e,i){var o;if(this.options.buildTip){if("string"==typeof(o=this.options.buildTip.call(this,e,i))){var s=t.DomUtil.create("div");s.innerHTML=o,o=s.firstChild}}else(o=t.DomUtil.create("li","")).innerHTML=e;return t.DomUtil.addClass(o,"search-tip"),o._text=e,this.options.tipAutoSubmit&&t.DomEvent.disableClickPropagation(o).on(o,"click",t.DomEvent.stop,this).on(o,"click",(function(t){this._input.value=e,this._handleAutoresize(),this._input.focus(),this._hideTooltip(),this._handleSubmit()}),this),o},_getUrl:function(t){return"function"==typeof this.options.url?this.options.url(t):this.options.url},_defaultFilterData:function(t,e){var i,o,s,n={};if(""===(t=t.replace(/[.*+?^${}()|[\]\\]/g,"")))return[];i=this.options.initial?"^":"",o=this.options.casesensitive?void 0:"i",s=new RegExp(i+t,o);for(let t in e)s.test(t)&&(n[t]=e[t]);return n},showTooltip:function(t){if(this._countertips=0,this._tooltip.innerHTML="",this._tooltip.currentSelection=-1,this.options.tooltipLimit)for(let e in t){if(this._countertips===this.options.tooltipLimit)break;this._countertips++,this._tooltip.appendChild(this._createTip(e,t[e]))}return this._countertips>0?(this._tooltip.style.display="block",this._autoTypeTmp&&this._autoType(),this._autoTypeTmp=this.options.autoType):this._hideTooltip(),this._tooltip.scrollTop=0,this._countertips},_hideTooltip:function(){return this._tooltip.style.display="none",this._tooltip.innerHTML="",0},_defaultFormatData:function(e){var i=this,o=this.options.propertyName,s=this.options.propertyLoc,n={};if(t.Util.isArray(s))for(let r in e)n[i._getPath(e[r],o)]=t.latLng(i._getPath(e[r],s[0]),i._getPath(e[r],s[1]));else for(let r in e)n[i._getPath(e[r],o)]=t.latLng(i._getPath(e[r],s));return n},_recordsFromJsonp:function(e,i){t.Control.Search.callJsonp=i;var o=t.DomUtil.create("script","leaflet-search-jsonp",document.getElementsByTagName("body")[0]),s=t.Util.template(this._getUrl(e)+"&"+this.options.jsonpParam+"=L.Control.Search.callJsonp",{s:e});return o.type="text/javascript",o.src=s,{abort:function(){o.parentNode.removeChild(o)}}},_recordsFromAjax:function(e,i){void 0===window.XMLHttpRequest&&(window.XMLHttpRequest=function(){try{return new ActiveXObject("Microsoft.XMLHTTP.6.0")}catch(t){try{return new ActiveXObject("Microsoft.XMLHTTP.3.0")}catch(t){throw new Error("XMLHttpRequest is not supported")}}});var o=t.Browser.ie&&!window.atob&&document.querySelector?new XDomainRequest:new XMLHttpRequest,s=t.Util.template(this._getUrl(e),{s:e});return o.open("GET",s),o.onload=function(){i(JSON.parse(o.responseText))},o.onreadystatechange=function(){4===o.readyState&&200===o.status&&this.onload()},o.send(),o},_searchInLayer:function(e,i,o){var s,n=this;e instanceof t.Control.Search.Marker||(e instanceof t.Marker||e instanceof t.CircleMarker?n._getPath(e.options,o)?((s=e.getLatLng()).layer=e,i[n._getPath(e.options,o)]=s):n._getPath(e.feature.properties,o)&&((s=e.getLatLng()).layer=e,i[n._getPath(e.feature.properties,o)]=s):e instanceof t.Path||e instanceof t.Polyline||e instanceof t.Polygon?n._getPath(e.options,o)?((s=e.getBounds().getCenter()).layer=e,i[n._getPath(e.options,o)]=s):n._getPath(e.feature.properties,o)&&((s=e.getBounds().getCenter()).layer=e,i[n._getPath(e.feature.properties,o)]=s):e.hasOwnProperty("feature")?e.feature.properties.hasOwnProperty(o)&&(e.getLatLng&&"function"==typeof e.getLatLng?((s=e.getLatLng()).layer=e,i[e.feature.properties[o]]=s):e.getBounds&&"function"==typeof e.getBounds&&((s=e.getBounds().getCenter()).layer=e,i[e.feature.properties[o]]=s)):e instanceof t.LayerGroup&&e.eachLayer((function(t){n._searchInLayer(t,i,o)})))},_recordsFromLayer:function(){var t=this,e={},i=this.options.propertyName;return this._layer.eachLayer((function(o){t._searchInLayer(o,e,i)})),e},_autoType:function(){var t=this._input.value.length,e=this._tooltip.firstChild?this._tooltip.firstChild._text:"",i=e.length;if(0===e.indexOf(this._input.value))if(this._input.value=e,this._handleAutoresize(),this._input.createTextRange){var o=this._input.createTextRange();o.collapse(!0),o.moveStart("character",t),o.moveEnd("character",i),o.select()}else this._input.setSelectionRange?this._input.setSelectionRange(t,i):this._input.selectionStart&&(this._input.selectionStart=t,this._input.selectionEnd=i)},_hideAutoType:function(){var t;if((t=this._input.selection)&&t.empty)t.empty();else if(this._input.createTextRange){(t=this._input.createTextRange()).collapse(!0);var e=this._input.value.length;t.moveStart("character",e),t.moveEnd("character",e),t.select()}else this._input.getSelection&&this._input.getSelection().removeAllRanges(),this._input.selectionStart=this._input.selectionEnd},_handleKeypress:function(t){var e=this;switch(t.keyCode){case 27:this.collapse();break;case 13:(1==this._countertips||this.options.firstTipSubmit&&this._countertips>0)&&-1==this._tooltip.currentSelection&&this._handleArrowSelect(1),this._handleSubmit();break;case 38:this._handleArrowSelect(-1);break;case 40:this._handleArrowSelect(1);break;case 8:case 45:case 46:this._autoTypeTmp=!1;break;case 37:case 39:case 16:case 17:case 35:case 36:break;default:this._input.value.length?this._cancel.style.display="block":this._cancel.style.display="none",this._input.value.length>=this.options.minLength?(clearTimeout(this.timerKeypress),this.timerKeypress=setTimeout((function(){e._fillRecordsCache()}),this.options.delayType)):this._hideTooltip()}this._handleAutoresize()},searchText:function(e){var i=e.charCodeAt(e.length);this._input.value=e,this._input.style.display="block",t.DomUtil.addClass(this._container,"search-exp"),this._autoTypeTmp=!1,this._handleKeypress({keyCode:i})},_fillRecordsCache:function(){var e,i=this,o=this._input.value;this._curReq&&this._curReq.abort&&this._curReq.abort(),t.DomUtil.addClass(this._container,"search-load"),this.options.layer?(this._recordsCache=this._recordsFromLayer(),e=this._filterData(this._input.value,this._recordsCache),this.showTooltip(e),t.DomUtil.removeClass(this._container,"search-load")):(this.options.sourceData?this._retrieveData=this.options.sourceData:this.options.url&&(this._retrieveData=this.options.jsonpParam?this._recordsFromJsonp:this._recordsFromAjax),this._curReq=this._retrieveData.call(this,o,(function(o){i._recordsCache=i._formatData.call(i,o),e=i.options.sourceData?i._filterData(i._input.value,i._recordsCache):i._recordsCache,i.showTooltip(e),t.DomUtil.removeClass(i._container,"search-load")})))},_handleAutoresize:function(){var t;this._input.style.maxWidth!==this._map._container.offsetWidth&&(t=this._map._container.clientWidth,t-=83,this._input.style.maxWidth=t.toString()+"px"),this.options.autoResize&&this._container.offsetWidth+20<this._map._container.offsetWidth&&(this._input.size=this._input.value.length<this._inputMinSize?this._inputMinSize:this._input.value.length)},_handleArrowSelect:function(e){var i=this._tooltip.hasChildNodes()?this._tooltip.childNodes:[];for(let e=0;e<i.length;e++)t.DomUtil.removeClass(i[e],"search-tip-select");if(1==e&&this._tooltip.currentSelection>=i.length-1)t.DomUtil.addClass(i[this._tooltip.currentSelection],"search-tip-select");else if(-1==e&&this._tooltip.currentSelection<=0)this._tooltip.currentSelection=-1;else if("none"!=this._tooltip.style.display){this._tooltip.currentSelection+=e,t.DomUtil.addClass(i[this._tooltip.currentSelection],"search-tip-select"),this._input.value=i[this._tooltip.currentSelection]._text;var o=i[this._tooltip.currentSelection].offsetTop;o+i[this._tooltip.currentSelection].clientHeight>=this._tooltip.scrollTop+this._tooltip.clientHeight?this._tooltip.scrollTop=o-this._tooltip.clientHeight+i[this._tooltip.currentSelection].clientHeight:o<=this._tooltip.scrollTop&&(this._tooltip.scrollTop=o)}},_handleSubmit:function(){if(this._hideAutoType(),this.hideAlert(),this._hideTooltip(),"none"==this._input.style.display)this.expand();else if(""===this._input.value)this.collapse();else{var t=this._getLocation(this._input.value);t?(this.showLocation(t,this._input.value),this.fire("search:locationfound",{latlng:t,text:this._input.value,layer:t.layer?t.layer:null})):this.showAlert()}},_getLocation:function(t){return!!this._recordsCache.hasOwnProperty(t)&&this._recordsCache[t]},_defaultMoveToLocation:function(t,e,i){this.options.zoom?this._map.setView(t,this.options.zoom):this._map.panTo(t)},showLocation:function(t,e){var i=this;return i._map.once("moveend zoomend",(function(e){i._markerSearch&&i._markerSearch.addTo(i._map).setLatLng(t)})),i._moveToLocation(t,e,i._map),i.options.autoCollapse&&i.collapse(),i}}),t.Control.Search.Marker=t.Marker.extend({includes:"1"===t.version[0]?t.Evented.prototype:t.Mixin.Events,options:{icon:new t.Icon.Default,animate:!0,circle:{radius:10,weight:3,color:"#e03",stroke:!0,fill:!1}},initialize:function(e,i){t.setOptions(this,i),!0===i.icon&&(i.icon=new t.Icon.Default),t.Marker.prototype.initialize.call(this,e,i),t.Control.Search.prototype._isObject(this.options.circle)&&(this._circleLoc=new t.CircleMarker(e,this.options.circle))},onAdd:function(e){t.Marker.prototype.onAdd.call(this,e),this._circleLoc&&(e.addLayer(this._circleLoc),this.options.animate&&this.animate())},onRemove:function(e){t.Marker.prototype.onRemove.call(this,e),this._circleLoc&&e.removeLayer(this._circleLoc)},setLatLng:function(e){return t.Marker.prototype.setLatLng.call(this,e),this._circleLoc&&this._circleLoc.setLatLng(e),this},_initIcon:function(){this.options.icon&&t.Marker.prototype._initIcon.call(this)},_removeIcon:function(){this.options.icon&&t.Marker.prototype._removeIcon.call(this)},animate:function(){if(this._circleLoc){var t=this._circleLoc,e=200,i=5,o=parseInt(t._radius/i),s=this.options.circle.radius,n=2*t._radius,r=0;t._timerAnimLoc=setInterval((function(){n-=o+=r+=.5,t.setRadius(n),n<s&&(clearInterval(t._timerAnimLoc),t.setRadius(s))}),e)}return this}}),t.Map.addInitHook((function(){this.options.searchControl&&(this.searchControl=t.control.search(this.options.searchControl),this.addControl(this.searchControl))})),t.control.search=function(e){return new t.Control.Search(e)},t.Control.Search})?o.apply(e,s):o)||(t.exports=n)},153:()=>{},525:t=>{"use strict";t.exports=L}},e={};function i(o){var s=e[o];if(void 0!==s)return s.exports;var n=e[o]={exports:{}};return t[o](n,n.exports,i),n.exports}i(844);i(153)})();</script>
@@ -4099,9 +5282,9 @@ min-width: 220px;
 }
 </style>
   <div class="map-caption">*locations are approximate to maintain privacy*</div>
-  <div id="htmlwidget-16df9c4aac7069f948fb" style="width:100%;height:100vh;" class="leaflet html-widget"></div>
+  <div id="htmlwidget-44c21ae78d3bae65c887" style="width:100%;height:100vh;" class="leaflet html-widget"></div>
 </div>
-<script type="application/json" data-for="htmlwidget-16df9c4aac7069f948fb">{"x":{"options":{"minZoom":5,"maxZoom":11,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}}},"calls":[{"method":"addTiles","args":["https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",null,null,{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"attribution":"&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap<\/a> contributors &copy; <a href=\"https://carto.com/attributions\">CARTO<\/a>"}]},{"method":"addCircleMarkers","args":[[47.07155898617113,48.92549062414044,46.42686668702648,46.35422287814995,46.44868059761157,48.35485287611676,47.78629719617681,46.87412891762598,46.26199578128332,46.8618195007893,45.0151588626301,48.10632027408757,48.4116355600385,45.92992382576126,45.43934221548751,47.34562333573541,46.71759376356277,47.08123856291984,45.73454970812062,46.13313689585959,43.62868004987153,48.04083379469657,48.77551931527251,48.36913485801573,46.89196657698137,48.74228964885209,47.29549268650831,47.83195227757842,45.78714441582705,48.86038702681173,47.37741869750337,47.29731292016678,47.80444076493324,48.09346528735815,36.6745441875527,48.01016216559587,48.1868291702033,47.81839879674484,46.51482427424639,46.85148317354243,46.09283249534394,48.58995575421747,48.37847360593197,48.76843429906373,46.3731936838175,47.73265977090681,48.69955446917781,46.78295301858466,48.6957304910475,46.8254715797672,46.6437115511003,44.25795506010447,48.73981351218445,46.19717381421791,48.76484561371495,46.83259579561685,48.37264903578834,48.81879895149676,48.34385109860916,46.9166865555697,44.53764331088629,46.91321624240809,46.64079135101634,48.43184335785152,46.65402788389564,47.69692589863891,47.76705727344302,47.1373408217942,48.19110872276522,48.15822255748726,46.8855762657416,45.92696575373534,46.95006116358181,46.22649676612772,44.65441806307575,48.34418871163793,46.23018463903088,45.46543394893197,47.86804496511651,45.92007564979619,48.50622055720225,47.45597049614337,46.91446189771737,48.79303813384508,46.39895283579646,44.01594608910297,46.91755259049872,45.86861089578819,47.0684237399211,46.74458097747453,46.34438797761594,48.52918735236255,48.58924938584953,48.39109067656371,46.95023536142163,47.4563242191379,48.07339804128029,46.10946757431221,47.3850868357564,47.2292499506917,47.20343899568829,48.38957528732821,46.13400057527864,48.35780485285959,34.77197969426671,48.85770925706333,47.4279579335976,44.37074014811478,46.11566891503624,46.8333486862524,47.31740992706233],[-96.81739824846674,-97.96001506945662,-98.34101753572646,-96.05988712121942,-97.64408382834291,-100.4183777328605,-97.60009817475104,-96.58016011640098,-97.1249806849753,-102.0860829945532,-93.47859210153962,-103.6298897185839,-101.0330031552505,-102.6117756429025,-101.0580275408958,-96.78648221954137,-96.60405194595349,-97.21629354432889,-97.3921809243359,-98.07386687114709,-94.08547833934578,-101.9478634591346,-101.5064467886225,-98.4986984034648,-103.199036161623,-97.6207595002256,-97.39407057126468,-97.66320378960691,-97.77275732304243,-99.60050911247954,-98.1258837783051,-101.7860236573722,-96.64342442781667,-103.5961608681144,-97.83193469408909,-97.17961630134469,-98.81011325182459,-99.93077863809232,-97.72997706009942,-100.8779964318799,-99.42504006962344,-97.12868473086924,-97.44432662609643,-98.39720087647758,-97.64328599154085,-96.59693068789977,-101.8494363457762,-95.89778283041947,-98.34853546877342,-97.00291198968726,-97.28591811411422,-96.76184846753439,-97.56795983901984,-97.63102466529347,-98.36606057915824,-102.844925430479,-100.0266688012832,-98.3297585965623,-102.9303565273927,-96.74046765756208,-99.48893222535152,-98.24681885195969,-95.56813975903688,-101.6589720024404,-100.9165580553176,-99.67827082758254,-103.3367348018151,-104.7413293833176,-103.6148414878875,-98.33386667845626,-99.33511776020993,-100.3160428601454,-97.33573977139585,-99.60068535938095,-93.44513979817081,-101.1038950097241,-97.43924699416061,-95.82423906448099,-97.61118323055038,-95.37985716424279,-97.86350334976535,-99.12471197098114,-98.04372158038279,-100.4213690675167,-98.73748164516802,-95.44826191428329,-96.82597092382086,-104.5207061374399,-98.25544640899678,-100.7668459447687,-98.25642659854921,-100.7136058149057,-101.3447299228319,-100.018579113007,-98.73421324235203,-97.10864050775511,-101.0158124992482,-103.4276340646126,-102.7738618928632,-98.59705118790023,-97.54325757265251,-97.429391974035,-103.0965252179613,-97.70694592843597,-92.33300460068237,-97.91203938038383,-97.05349120982781,-96.90784757018308,-97.49768531634693,-96.83548084255281,-97.45844545823246],10,null,["Manned","Unmanned","Unmanned","Manned","Manned","Unmanned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Unmanned","Manned","Manned","Unmanned","Manned","Manned","Manned","Manned","Manned","Unmanned","Manned","Manned","Manned","Manned","Unmanned","Unmanned","Unmanned","Unmanned","Unmanned","Manned","Manned","Manned","Manned","Unmanned","Manned","Manned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Manned","Manned","Manned","Unmanned","Unmanned","Manned","Manned","Manned","Manned","Manned","Manned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Unmanned","Manned","Manned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Unmanned","Manned","Unmanned","Manned","Unmanned","Unmanned","Manned","Manned","Unmanned","Manned","Manned","Manned","Unmanned","Manned","Unmanned","Manned","Manned","Manned","Unmanned","Manned","Manned","Manned","Unmanned","Manned","Manned","Unmanned","Unmanned"],{"interactive":true,"className":"","stroke":true,"color":["#658849","#34499B","#34499B","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#658849","#658849","#34499B","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#658849","#34499B","#658849","#34499B","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#34499B"],"weight":5,"opacity":0.5,"fill":true,"fillColor":["#658849","#34499B","#34499B","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#658849","#658849","#34499B","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#658849","#34499B","#658849","#34499B","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#34499B"],"fillOpacity":0.2},null,null,["<b>(PENDING) LOFTON AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Chad Lofton<br><b>EMAIL: <\/b><a href='mailto:chadlofton@hotmail.com'>chadlofton@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-1678'>218-779-1678<\/a><br><b>CITY/STATE: <\/b>Georgetown, MN<br><b>CHIEF PILOT: <\/b>Chad Lofton<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>(PENDING) SMITH, JOEL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Divan Beukes<br><b>EMAIL: <\/b><a href='mailto:joel@ssgrains.com'>joel@ssgrains.com<\/a><br><b>PHONE: <\/b><a href='tel:701-520-9688'>701-520-9688<\/a><br><b>CITY/STATE: <\/b>Walhalla, ND<br><b>CHIEF PILOT: <\/b>Divan Beukes<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>(PENDING) VOGEL, MICHAEL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Vogel<br><b>EMAIL: <\/b><a href='mailto:mikevogel@hotmail.com'>mikevogel@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-320-0624'>701-320-0624<\/a><br><b>CITY/STATE: <\/b>Lamoure, ND<br><b>CHIEF PILOT: <\/b>Michael Vogel<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>(PENDING) WEST CENTRAL AG-AIR INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Lubben<br><b>EMAIL: <\/b><a href='mailto:wcagair@live.com'>wcagair@live.com<\/a><br><b>PHONE: <\/b><a href='tel:218-770-0130'>218-770-0130<\/a><br><b>CITY/STATE: <\/b>Fergus Falls, MN<br><b>CHIEF PILOT: <\/b>Ryan Lubben<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>3RD GEN AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ben Halstenson<br><b>EMAIL: <\/b><a href='mailto:bhalstenson@3rdgenaviation.com'>bhalstenson@3rdgenaviation.com<\/a><br><b>PHONE: <\/b><a href='tel:701-739-5463'>701-739-5463<\/a><br><b>CITY/STATE: <\/b>Lisbon, ND<br><b>CHIEF PILOT: <\/b>Ben Halstenson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>4R FARM INSIGHTS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Mattie Schmitt<br><b>EMAIL: <\/b><a href='mailto:mattie@4rfarminsights.com'>mattie@4rfarminsights.com<\/a><br><b>PHONE: <\/b><a href='tel:701-833-4316'>701-833-4316<\/a><br><b>CITY/STATE: <\/b>Towner, ND<br><b>CHIEF PILOT: <\/b>Mattie Schmitt<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>701 AERIAL APPLICATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Tristen Uglem<br><b>EMAIL: <\/b><a href='mailto:ttuglem@gmail.com'>ttuglem@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-7382'>218-779-7382<\/a><br><b>CITY/STATE: <\/b>Northwood, ND<br><b>CHIEF PILOT: <\/b>Tristen Uglem<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AB SPRAY LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Parker Skolness<br><b>EMAIL: <\/b><a href='mailto:parker.skolness@gmail.com'>parker.skolness@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-866-1977'>701-866-1977<\/a><br><b>CITY/STATE: <\/b>Glyndon, MN<br><b>CHIEF PILOT: <\/b>Parker Skolness<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AERIAL AG DRONE SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brayden Busche<br><b>EMAIL: <\/b><a href='mailto:aerialagdrone@gmail.com'>aerialagdrone@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-660-9230'>701-660-9230<\/a><br><b>CITY/STATE: <\/b>Wyndmere, ND<br><b>CHIEF PILOT: <\/b>Brayden Busche<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AERIAL CROP CARE CO<\/b><br><br><b>OWNER/OPERATOR: <\/b>Pierson Chase<br><b>EMAIL: <\/b><a href='mailto:aerialcrop@westriv.com'>aerialcrop@westriv.com<\/a><br><b>PHONE: <\/b><a href='tel:701-878-4735'>701-878-4735<\/a><br><b>CITY/STATE: <\/b>Hebron, ND<br><b>CHIEF PILOT: <\/b>Person Chase<br><b>ADDL PILOTS: <\/b>Robert Wilson, Kevin Hansen<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AERIAL PLOT<\/b><br><br><b>OWNER/OPERATOR: <\/b>Travis Benson<br><b>EMAIL: <\/b><a href='mailto:travisbenson.mn@gmail.com'>travisbenson.mn@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:320-314-2075'>320-314-2075<\/a><br><b>CITY/STATE: <\/b>Wayzata, MN<br><b>CHIEF PILOT: <\/b>Travis Benson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AERO SPRAYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rick Marburger<br><b>EMAIL: <\/b><a href='mailto:rckmrbrgr@gmail.com'>rckmrbrgr@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-570-2342'>701-570-2342<\/a><br><b>CITY/STATE: <\/b>Williston, ND<br><b>CHIEF PILOT: <\/b>Rick Marburger<br><b>ADDL PILOTS: <\/b>Dustin Villines, Tanner Overland<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AGRITECH AVIATION INC, MILLER SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jerold Miller<br><b>EMAIL: <\/b><a href='mailto:sales@agritechinc.com'>sales@agritechinc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-728-6614'>701-728-6614<\/a><br><b>CITY/STATE: <\/b>Deering, ND<br><b>CHIEF PILOT: <\/b>Jerold Miller<br><b>ADDL PILOTS: <\/b>Steven Mairs<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIR DAKOTA FLITE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Charles Lindquist<br><b>EMAIL: <\/b><a href='mailto:airdakota@ndsupernet.com'>airdakota@ndsupernet.com<\/a><br><b>PHONE: <\/b><a href='tel:701-567-2069'>701-567-2069<\/a><br><b>CITY/STATE: <\/b>Hettinger, ND<br><b>CHIEF PILOT: <\/b>Charles Lindquist<br><b>ADDL PILOTS: <\/b>Michael Lindquist, James Lindquist<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIR KRAFT SPRAYING INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jake Kraft<br><b>EMAIL: <\/b><a href='mailto:aksjake@gmail.com'>aksjake@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:605-848-2624'>605-848-2624<\/a><br><b>CITY/STATE: <\/b>Timber Lake, SD<br><b>CHIEF PILOT: <\/b>Jake Kraft<br><b>ADDL PILOTS: <\/b>Tyrone Kraft, Tanner Kraft, Isaac Kraft<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIRBORNE CUSTOM SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rob Aslesen<br><b>EMAIL: <\/b><a href='mailto:admin@airborncustomspraying.com'>admin@airborncustomspraying.com<\/a><br><b>PHONE: <\/b><a href='tel:218-456-2465'>218-456-2465<\/a><br><b>CITY/STATE: <\/b>Halstad, MN<br><b>CHIEF PILOT: <\/b>Rob Aslesen<br><b>ADDL PILOTS: <\/b>Jon Aslesen, Marlin Ingebretson, Chad Hanson, Rafael Flores, Josh Maier, Zach Wolf, Jacob Radermacher<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIRWORKS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Andrew Aslesen<br><b>EMAIL: <\/b><a href='mailto:andrew@airworksmn.com'>andrew@airworksmn.com<\/a><br><b>PHONE: <\/b><a href='tel:218-770-1248'>218-770-1248<\/a><br><b>CITY/STATE: <\/b>Sabin, MN<br><b>CHIEF PILOT: <\/b>Andrew Aslesen<br><b>ADDL PILOTS: <\/b>Dean Lesmeister<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>ARTHUR AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Matt Hovdenes<br><b>EMAIL: <\/b><a href='mailto:matt.hovdenes@arthurcompanies.com'>matt.hovdenes@arthurcompanies.com<\/a><br><b>PHONE: <\/b><a href='tel:218-790-2765'>218-790-2765<\/a><br><b>CITY/STATE: <\/b>Arthur, ND<br><b>CHIEF PILOT: <\/b>Matt Hovdenes<br><b>ADDL PILOTS: <\/b>Andrew Gerswold<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BAIR AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Craig Bair<br><b>EMAIL: <\/b><a href='mailto:bairaviation@gmail.com'>bairaviation@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:402-366-4300'>402-366-4300<\/a><br><b>CITY/STATE: <\/b>Lake City, SD<br><b>CHIEF PILOT: <\/b>Craig Bair<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BEAR CREEK FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Travis Mcpherson<br><b>EMAIL: <\/b><a href='mailto:bearcreekflying@drtel.net'>bearcreekflying@drtel.net<\/a><br><b>PHONE: <\/b><a href='tel:701-710-1220'>701-710-1220<\/a><br><b>CITY/STATE: <\/b>Oakes, ND<br><b>CHIEF PILOT: <\/b>Travis Mcpherson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BLUE EARTH FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Luke Steier<br><b>EMAIL: <\/b><a href='mailto:carly.steier@hotmail.com'>carly.steier@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:507-526-7264'>507-526-7264<\/a><br><b>CITY/STATE: <\/b>Blue Earth, MN<br><b>CHIEF PILOT: <\/b>Luke Steier<br><b>ADDL PILOTS: <\/b>Jacob Huber, Norbert Gregory, Nathan Tafelmeyer<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BLUE SKIES AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Tyler Fjeldahl<br><b>EMAIL: <\/b><a href='mailto:tyler.fjeldahl@gmail.com'>tyler.fjeldahl@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-822-0854'>701-822-0854<\/a><br><b>CITY/STATE: <\/b>Plaza, ND<br><b>CHIEF PILOT: <\/b>Tyler Fjeldahl<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>BOWERS AERIAL LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Blake Bowers<br><b>EMAIL: <\/b><a href='mailto:bowersaerial@gmail.com'>bowersaerial@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-818-7459'>701-818-7459<\/a><br><b>CITY/STATE: <\/b>Mohall, ND<br><b>CHIEF PILOT: <\/b>Blake Bowers<br><b>ADDL PILOTS: <\/b>Chad Gravesen, Sanjiv Bishesar<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BREKKE AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jess Brekke<br><b>EMAIL: <\/b><a href='mailto:jess@brekkeaviation.com'>jess@brekkeaviation.com<\/a><br><b>PHONE: <\/b><a href='tel:701-644-2618'>701-644-2618<\/a><br><b>CITY/STATE: <\/b>Edmore, ND<br><b>CHIEF PILOT: <\/b>Jess Brekke<br><b>ADDL PILOTS: <\/b>Cristiano Barros Da Costa<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BUCKSHOT SPRAYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Curtis Buckman<br><b>EMAIL: <\/b><a href='mailto:buckshotspraying@yahoo.com'>buckshotspraying@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:701-575-8477'>701-575-8477<\/a><br><b>CITY/STATE: <\/b>Belfield, ND<br><b>CHIEF PILOT: <\/b>Curtis Buckman<br><b>ADDL PILOTS: <\/b>Cindy Buckman<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>CAVALIER AIR SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jeremy Seng<br><b>EMAIL: <\/b><a href='mailto:jeremycseng@gmail.com'>jeremycseng@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-265-4466'>701-265-4466<\/a><br><b>CITY/STATE: <\/b>Cavalier, ND<br><b>CHIEF PILOT: <\/b>Jeremy Seng<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>CLIFFORD FARMERS COOP ELEVATOR<\/b><br><br><b>OWNER/OPERATOR: <\/b>Steve Baldock<br><b>EMAIL: <\/b><a href='mailto:kody@cliffordfarmerscoop.com'>kody@cliffordfarmerscoop.com<\/a><br><b>PHONE: <\/b><a href='tel:701-289-0018'>701-289-0018<\/a><br><b>CITY/STATE: <\/b>Clifford, ND<br><b>CHIEF PILOT: <\/b>Ryan Groth<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>CUSTOM CROP CARE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Derek Morten<br><b>EMAIL: <\/b><a href='mailto:derekmorten39@gmail.com'>derekmorten39@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-6637'>218-779-6637<\/a><br><b>CITY/STATE: <\/b>Larimore, ND<br><b>CHIEF PILOT: <\/b>Derek Morten<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAKOTA AG SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Furman<br><b>EMAIL: <\/b><a href='mailto:dasinc@venturecomm.net'>dasinc@venturecomm.net<\/a><br><b>PHONE: <\/b><a href='tel:605-448-2264'>605-448-2264<\/a><br><b>CITY/STATE: <\/b>Britton, SD<br><b>CHIEF PILOT: <\/b>Craig Bair<br><b>ADDL PILOTS: <\/b>Darrin Pluhar<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAKOTA AIR SPRAY<\/b><br><br><b>OWNER/OPERATOR: <\/b>Philip Soukup<br><b>EMAIL: <\/b><a href='mailto:psoukup@dakotaairspray.com'>psoukup@dakotaairspray.com<\/a><br><b>PHONE: <\/b><a href='tel:701-550-0134'>701-550-0134<\/a><br><b>CITY/STATE: <\/b>Rolla, ND<br><b>CHIEF PILOT: <\/b>Erik Klindt<br><b>ADDL PILOTS: <\/b>Alexander Viger, Paul Deal<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAKOTA DRONE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Dane Mueller<br><b>EMAIL: <\/b><a href='mailto:dmueller1305@gmail.com'>dmueller1305@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-789-1305'>701-789-1305<\/a><br><b>CITY/STATE: <\/b>Cooperstown, ND<br><b>CHIEF PILOT: <\/b>Dane Mueller<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>DAKOTA HELICOPTERS INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Shawn Morten<br><b>EMAIL: <\/b><a href='mailto:smorten@dakotahelicopters.com'>smorten@dakotahelicopters.com<\/a><br><b>PHONE: <\/b><a href='tel:701-873-4100'>701-873-4100<\/a><br><b>CITY/STATE: <\/b>Beulah, ND<br><b>CHIEF PILOT: <\/b>Shawn Morten<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAN'S FLYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Daniel Geist<br><b>EMAIL: <\/b><a href='mailto:dansflyingservice@gmail.com'>dansflyingservice@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-281-1372'>218-281-1372<\/a><br><b>CITY/STATE: <\/b>Crookston, MN<br><b>CHIEF PILOT: <\/b>Daniel Geist<br><b>ADDL PILOTS: <\/b>Tyler Ness, Andreas Geist<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DEKALB AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Fletcher Dekalb<br><b>EMAIL: <\/b><a href='mailto:fdekalb@gmail.com'>fdekalb@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:509-322-6543'>509-322-6543<\/a><br><b>CITY/STATE: <\/b>Williston, ND<br><b>CHIEF PILOT: <\/b>Fletcher Dekalb<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DETERDING AERIAL LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jim Deterding<br><b>EMAIL: <\/b><a href='mailto:deterdingaerial@yahoo.com'>deterdingaerial@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:580-532-4490'>580-532-4490<\/a><br><b>CITY/STATE: <\/b>Pond Creek, OK<br><b>CHIEF PILOT: <\/b>Jacob Severin<br><b>ADDL PILOTS: <\/b>Daniel Yoder<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DONALDSON PRECISION SPRAYING LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ethan Donaldson<br><b>EMAIL: <\/b><a href='mailto:hallockethan@gmail.com'>hallockethan@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-410-8049'>701-410-8049<\/a><br><b>CITY/STATE: <\/b>Manvel, ND<br><b>CHIEF PILOT: <\/b>Ethan Donaldson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>DRONE ZONE SPRAY SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Veer<br><b>EMAIL: <\/b><a href='mailto:mveer@gondtc.com'>mveer@gondtc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-381-9707'>701-381-9707<\/a><br><b>CITY/STATE: <\/b>Devils Lake, ND<br><b>CHIEF PILOT: <\/b>Michael Veer<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>EAGLE EYE DRONE SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Shane Martinson<br><b>EMAIL: <\/b><a href='mailto:shanemartinson@hotmail.com'>shanemartinson@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-399-6016'>701-399-6016<\/a><br><b>CITY/STATE: <\/b>Harvey, ND<br><b>CHIEF PILOT: <\/b>Shane Martinson<br><b>ADDL PILOTS: <\/b>Brevon Martinson<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>ELEVATED AG SOLUTIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Spencer Schwab<br><b>EMAIL: <\/b><a href='mailto:bigssfarms@gmail.com'>bigssfarms@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-7640'>701-680-7640<\/a><br><b>CITY/STATE: <\/b>Lisbon, ND<br><b>CHIEF PILOT: <\/b>Spencer Schwab<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>FIELD FLIGHT SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jamie Seedorf<br><b>EMAIL: <\/b><a href='mailto:jamieseedorf737@gmail.com'>jamieseedorf737@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-498-0138'>701-498-0138<\/a><br><b>CITY/STATE: <\/b>Mandan, ND<br><b>CHIEF PILOT: <\/b>Jamie Seedorf<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>FLY LOW AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Cally Arndt<br><b>EMAIL: <\/b><a href='mailto:flylownd@gmail.com'>flylownd@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:719-239-1558'>719-239-1558<\/a><br><b>CITY/STATE: <\/b>Ashley, ND<br><b>CHIEF PILOT: <\/b>Tyson Lukasavige<br><b>ADDL PILOTS: <\/b>Tyler Chamberlain, Jason Hurt<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FLYING G AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Troy Georgeson<br><b>EMAIL: <\/b><a href='mailto:flyingg@polarcomm.com'>flyingg@polarcomm.com<\/a><br><b>PHONE: <\/b><a href='tel:701-454-6588'>701-454-6588<\/a><br><b>CITY/STATE: <\/b>Drayton, ND<br><b>CHIEF PILOT: <\/b>Troy Georgeson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FLYITON AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Lynn Johnson<br><b>EMAIL: <\/b><a href='mailto:ljohn1340@aol.com'>ljohn1340@aol.com<\/a><br><b>PHONE: <\/b><a href='tel:701-360-5966'>701-360-5966<\/a><br><b>CITY/STATE: <\/b>Grafton, ND<br><b>CHIEF PILOT: <\/b>Lynn Johnson<br><b>ADDL PILOTS: <\/b>Kyle Sveen, Robert Johnson<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FOREST FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kevin Forest<br><b>EMAIL: <\/b><a href='mailto:forestflying@yahoo.com'>forestflying@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:701-305-0072'>701-305-0072<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>Kevin Forest<br><b>ADDL PILOTS: <\/b>David Hart, Jesse Fetsch<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FROEMKE AERIAL SOLUTIONS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Steven Froemke<br><b>EMAIL: <\/b><a href='mailto:info@froemkeas.com'>info@froemkeas.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-0564'>701-680-0564<\/a><br><b>CITY/STATE: <\/b>Lisbon, ND<br><b>CHIEF PILOT: <\/b>Steven Froemke<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>GASPER AIR SPRAY INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Gasper<br><b>EMAIL: <\/b><a href='mailto:gasperairspray@gmail.com'>gasperairspray@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-289-0076'>218-289-0076<\/a><br><b>CITY/STATE: <\/b>Crookston, MN<br><b>CHIEF PILOT: <\/b>Michael Gasper<br><b>ADDL PILOTS: <\/b>Brady Davis<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>GREAT PLAINS AERO INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Julius Brekhus<br><b>EMAIL: <\/b><a href='mailto:paklbrek@restel.com'>paklbrek@restel.com<\/a><br><b>PHONE: <\/b><a href='tel:701-848-6116'>701-848-6116<\/a><br><b>CITY/STATE: <\/b>Tolley, ND<br><b>CHIEF PILOT: <\/b>Julius Brekhus<br><b>ADDL PILOTS: <\/b>Dakota Petersen, Paul Soulek, Joe Baker, <br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HANSEN AG AIR LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ross Hansen<br><b>EMAIL: <\/b><a href='mailto:ross.p.hansen@icloud.com'>ross.p.hansen@icloud.com<\/a><br><b>PHONE: <\/b><a href='tel:218-849-6300'>218-849-6300<\/a><br><b>CITY/STATE: <\/b>Detroit Lakes, MN<br><b>CHIEF PILOT: <\/b>Ross Hansen<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HART FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>David Hart<br><b>EMAIL: <\/b><a href='mailto:tmmtrans@yahoo.com'>tmmtrans@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:701-305-0458'>701-305-0458<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>David Hart<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HARVEST PARTNERS GENERAL PARTNERSHIP<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jacob Clauson<br><b>EMAIL: <\/b><a href='mailto:clausonja92@gmail.com'>clausonja92@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-5676'>701-680-5676<\/a><br><b>CITY/STATE: <\/b>Mapleton, ND<br><b>CHIEF PILOT: <\/b>Jacob Clauson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HEUER AGRI DRONE SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Eleanor Heuer<br><b>EMAIL: <\/b><a href='mailto:heueragridrone@outlook.com'>heueragridrone@outlook.com<\/a><br><b>PHONE: <\/b><a href='tel:701-238-9046'>701-238-9046<\/a><br><b>CITY/STATE: <\/b>Leonard, ND<br><b>CHIEF PILOT: <\/b>Eleanor Heuer<br><b>ADDL PILOTS: <\/b>Matt Heuer<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HILLHEAD DRONE SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Thad Grimsrud<br><b>EMAIL: <\/b><a href='mailto:thadgrimsrud@gmail.com'>thadgrimsrud@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:605-695-5600'>605-695-5600<\/a><br><b>CITY/STATE: <\/b>Brookings, SD<br><b>CHIEF PILOT: <\/b>Thad Grimsrud<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HINKLE AIRSPRAY INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jason Hinkle<br><b>EMAIL: <\/b><a href='mailto:sarahinkle37@gmail.com'>sarahinkle37@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-265-8405'>701-265-8405<\/a><br><b>CITY/STATE: <\/b>Cavalier, ND<br><b>CHIEF PILOT: <\/b>Jason Hinkle<br><b>ADDL PILOTS: <\/b>Justin Hinkle<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HOISTAD FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rick Hoistad<br><b>EMAIL: <\/b><a href='mailto:ajstroh@gmail.com'>ajstroh@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-308-0169'>701-308-0169<\/a><br><b>CITY/STATE: <\/b>Gwinner, ND<br><b>CHIEF PILOT: <\/b>Andrew Stroh<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HOWATT AIR INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Howatt<br><b>EMAIL: <\/b><a href='mailto:howattair@gmail.com'>howattair@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-370-9710'>701-370-9710<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>Ryan Howatt<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HYDRO AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brent Wanner<br><b>EMAIL: <\/b><a href='mailto:wanner_4020@hotmail.com'>wanner_4020@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-290-6663'>701-290-6663<\/a><br><b>CITY/STATE: <\/b>Dickinson, ND<br><b>CHIEF PILOT: <\/b>Brent Wanner<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>IDEAL SEED SOLUTIONS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jason Brossart<br><b>EMAIL: <\/b><a href='mailto:idealseedsolutions@gmail.com'>idealseedsolutions@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-208-0424'>701-208-0424<\/a><br><b>CITY/STATE: <\/b>Rugby, ND<br><b>CHIEF PILOT: <\/b>Jason Brossart<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>KH AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Howatt<br><b>EMAIL: <\/b><a href='mailto:howattair@gmail.com'>howattair@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-370-9710'>701-370-9710<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>Ryan Howatt<br><b>ADDL PILOTS: <\/b>Daniel Kubal<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>KNUTSON FLYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Eugene Knutson<br><b>EMAIL: <\/b><a href='mailto:kflyer@nccray.com'>kflyer@nccray.com<\/a><br><b>PHONE: <\/b><a href='tel:701-641-3276'>701-641-3276<\/a><br><b>CITY/STATE: <\/b>Tioga, ND<br><b>CHIEF PILOT: <\/b>Eugene Knutson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>KRACKE SPRAYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Curtis Kracke<br><b>EMAIL: <\/b><a href='mailto:curtiskracke@gmail.com'>curtiskracke@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-799-9008'>701-799-9008<\/a><br><b>CITY/STATE: <\/b>Fargo, ND<br><b>CHIEF PILOT: <\/b>Curtis Kracke<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>KROEPLIN AIR SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Doug Kroeplin<br><b>EMAIL: <\/b><a href='mailto:makayla@kroeplinair.com'>makayla@kroeplinair.com<\/a><br><b>PHONE: <\/b><a href='tel:605-852-2030'>605-852-2030<\/a><br><b>CITY/STATE: <\/b>Highmore, SD<br><b>CHIEF PILOT: <\/b>Levi Stoddard<br><b>ADDL PILOTS: <\/b>Mark Becker<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LAKEVIEW AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brian Welken<br><b>EMAIL: <\/b><a href='mailto:brian@seenterprisesinc.com'>brian@seenterprisesinc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-840-8784'>701-840-8784<\/a><br><b>CITY/STATE: <\/b>Sanborn, ND<br><b>CHIEF PILOT: <\/b>Brian Welken<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LARSON HELICOPTERS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Larson<br><b>EMAIL: <\/b><a href='mailto:larheli@arvig.net'>larheli@arvig.net<\/a><br><b>PHONE: <\/b><a href='tel:218-346-5719'>218-346-5719<\/a><br><b>CITY/STATE: <\/b>Perham, MN<br><b>CHIEF PILOT: <\/b>Michael Larson<br><b>ADDL PILOTS: <\/b>Dylan Larson<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LIMKE, BRAD<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brad Limke<br><b>EMAIL: <\/b><a href='mailto:brad.limke@gmail.com'>brad.limke@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-509-3953'>701-509-3953<\/a><br><b>CITY/STATE: <\/b>Carpio, ND<br><b>CHIEF PILOT: <\/b>Brad Limke<br><b>ADDL PILOTS: <\/b>Michael Limke<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>LITTLE HEART APPLICATORS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Logan Ripple<br><b>EMAIL: <\/b><a href='mailto:caveman9112@gmail.com'>caveman9112@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:970-623-0299'>970-623-0299<\/a><br><b>CITY/STATE: <\/b>Saint Anthony, ND<br><b>CHIEF PILOT: <\/b>Logan Ripple<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>LOCAL AG SOLUTIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Taryn Doan<br><b>EMAIL: <\/b><a href='mailto:tarynallmaras@gmail.com'>tarynallmaras@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-391-6130'>701-391-6130<\/a><br><b>CITY/STATE: <\/b>Fessenden, ND<br><b>CHIEF PILOT: <\/b>Patrick Doan<br><b>ADDL PILOTS: <\/b>Taryn Allmaras<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>LT ENTERPRISES INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Luke Taylor<br><b>EMAIL: <\/b><a href='mailto:luke@ltenterprisesnd.com'>luke@ltenterprisesnd.com<\/a><br><b>PHONE: <\/b><a href='tel:701-570-2646'>701-570-2646<\/a><br><b>CITY/STATE: <\/b>Watford City, ND<br><b>CHIEF PILOT: <\/b>Luke Taylor<br><b>ADDL PILOTS: <\/b>Jonathan Hays, Adam Taylor, Rick Foss, Jeremy Renken<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LYTLE DRONE APPLICATIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Tim Lytle<br><b>EMAIL: <\/b><a href='mailto:tdblytle@midrivers.com'>tdblytle@midrivers.com<\/a><br><b>PHONE: <\/b><a href='tel:406-855-6097'>406-855-6097<\/a><br><b>CITY/STATE: <\/b>Glendive, MT<br><b>CHIEF PILOT: <\/b>Tim Lytle<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MASTER OF NONE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Shawn Steinberger<br><b>EMAIL: <\/b><a href='mailto:shawn@masterofnonellc.com'>shawn@masterofnonellc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-580-5664'>701-580-5664<\/a><br><b>CITY/STATE: <\/b>Williston, ND<br><b>CHIEF PILOT: <\/b>Shawn Steinberger<br><b>ADDL PILOTS: <\/b>Noah Farmer, Dillon Farmer<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MATEJCEK INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kamron Matejcek<br><b>EMAIL: <\/b><a href='mailto:kamron.matejcek@gmail.com'>kamron.matejcek@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-270-9921BROCKET'>701-270-9921BROCKET<\/a><br><b>CITY/STATE: <\/b>Brocket, ND<br><b>CHIEF PILOT: <\/b>Kamron Matejcek<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MEDINA FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brian Rau<br><b>EMAIL: <\/b><a href='mailto:medinaflying@aol.com'>medinaflying@aol.com<\/a><br><b>PHONE: <\/b><a href='tel:701-320-9505'>701-320-9505<\/a><br><b>CITY/STATE: <\/b>Medina, ND<br><b>CHIEF PILOT: <\/b>Brian Rau<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>MEYER DRONE SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Samuel Meyer<br><b>EMAIL: <\/b><a href='mailto:samuel.meyer02@gmail.com'>samuel.meyer02@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-609-6788'>701-609-6788<\/a><br><b>CITY/STATE: <\/b>Pollock, SD<br><b>CHIEF PILOT: <\/b>Samuel Meyer<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MIDWEST CUSTOM AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Derek Wunderlich<br><b>EMAIL: <\/b><a href='mailto:derek@midwestcustomag.com'>derek@midwestcustomag.com<\/a><br><b>PHONE: <\/b><a href='tel:701-630-4713'>701-630-4713<\/a><br><b>CITY/STATE: <\/b>Wheatland, ND<br><b>CHIEF PILOT: <\/b>Derek Wunderlich<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MIDWEST DRONE APPLICATORS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Cole Stock<br><b>EMAIL: <\/b><a href='mailto:midwestdrone24@gmail.com'>midwestdrone24@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-321-1688'>701-321-1688<\/a><br><b>CITY/STATE: <\/b>Wishek, ND<br><b>CHIEF PILOT: <\/b>Cole Stock<br><b>ADDL PILOTS: <\/b>Zachary Fischer<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MIDWEST SKYDRONE SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Bumann<br><b>EMAIL: <\/b><a href='mailto:ryanbumann@hotmail.com'>ryanbumann@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:952-607-7620'>952-607-7620<\/a><br><b>CITY/STATE: <\/b>Prior Lake, MN<br><b>CHIEF PILOT: <\/b>Ryan Bumann<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MILLER SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jerold Miller<br><b>EMAIL: <\/b><a href='mailto:sales@agritechinc.com'>sales@agritechinc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-833-5363'>701-833-5363<\/a><br><b>CITY/STATE: <\/b>Deering, ND<br><b>CHIEF PILOT: <\/b>Jerold Miller<br><b>ADDL PILOTS: <\/b>Steven Mairs<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>MILNOR AG AIR INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Mark Gainor<br><b>EMAIL: <\/b><a href='mailto:markgainor@icloud.com'>markgainor@icloud.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-1001'>701-680-1001<\/a><br><b>CITY/STATE: <\/b>Milnor, ND<br><b>CHIEF PILOT: <\/b>Mark Gainor<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>MINNKOTA AERIAL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Andrew Steiner<br><b>EMAIL: <\/b><a href='mailto:andrew@minnkotaaerial.com'>andrew@minnkotaaerial.com<\/a><br><b>PHONE: <\/b><a href='tel:320-288-6107'>320-288-6107<\/a><br><b>CITY/STATE: <\/b>Hancock, MN<br><b>CHIEF PILOT: <\/b>Andrew Steiner<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MORTEN AERO AERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jesse Morten<br><b>EMAIL: <\/b><a href='mailto:jessemorten@hotmail.com'>jessemorten@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-4244'>218-779-4244<\/a><br><b>CITY/STATE: <\/b>Larimore, ND<br><b>CHIEF PILOT: <\/b>Jesse Morten<br><b>ADDL PILOTS: <\/b>Derek Morten, Richard Goetz, Matthew Schanilec<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>NATURAL NORTH LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kevin Behrens<br><b>EMAIL: <\/b><a href='mailto:natural.northmn@gmail.com'>natural.northmn@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-297-0110'>218-297-0110<\/a><br><b>CITY/STATE: <\/b>Alexandria, MN<br><b>CHIEF PILOT: <\/b>Kevin Behrens<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NE AERIAL DRONE SPRAYING LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Adam Olson<br><b>EMAIL: <\/b><a href='mailto:neaerialdronesprayingllc@gmail.com'>neaerialdronesprayingllc@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-331-2268'>701-331-2268<\/a><br><b>CITY/STATE: <\/b>Edinburg, ND<br><b>CHIEF PILOT: <\/b>Adam Olson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NODAK DRONES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Mason Wede<br><b>EMAIL: <\/b><a href='mailto:nodakdrones@gmail.com'>nodakdrones@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-650-8536'>701-650-8536<\/a><br><b>CITY/STATE: <\/b>Carrington, ND<br><b>CHIEF PILOT: <\/b>Mason Wede<br><b>ADDL PILOTS: <\/b>Alexander Menke, Gregory Grenz<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NORTH VALLEY AIRCRAFT INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jarrod Lindemann<br><b>EMAIL: <\/b><a href='mailto:andrea@northvalleyaircraft.com'>andrea@northvalleyaircraft.com<\/a><br><b>PHONE: <\/b><a href='tel:701-845-2100'>701-845-2100<\/a><br><b>CITY/STATE: <\/b>Valley City, ND<br><b>CHIEF PILOT: <\/b>Jarrod Lindemann<br><b>ADDL PILOTS: <\/b>Paul Lindemann<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>NORTHERN EXPANSE AERIAL SOLUTIONS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Scott Robertson<br><b>EMAIL: <\/b><a href='mailto:northernexpanseaerial@gmail.com'>northernexpanseaerial@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-228-4205'>701-228-4205<\/a><br><b>CITY/STATE: <\/b>Bottineau, ND<br><b>CHIEF PILOT: <\/b>Scott Robertson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NORTHLAND AERIAL AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Dominic Carlson<br><b>EMAIL: <\/b><a href='mailto:dominic.carlson33@gmail.com'>dominic.carlson33@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-830-2458'>701-830-2458<\/a><br><b>CITY/STATE: <\/b>Edgeley, ND<br><b>CHIEF PILOT: <\/b>Dominic Carlson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>OLSEM AERIAL APPLICATION SVC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Benjamin Olsem<br><b>EMAIL: <\/b><a href='mailto:oaasllc@gmail.com'>oaasllc@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:507-360-1281'>507-360-1281<\/a><br><b>CITY/STATE: <\/b>Westbrook, MN<br><b>CHIEF PILOT: <\/b>Benjamin Olsem<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>PETERSON FARMS SEED<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brandon Chappel<br><b>EMAIL: <\/b><a href='mailto:brandon.chappel@peterson.ag'>brandon.chappel@peterson.ag<\/a><br><b>PHONE: <\/b><a href='tel:701-793-9369'>701-793-9369<\/a><br><b>CITY/STATE: <\/b>Harwood, ND<br><b>CHIEF PILOT: <\/b>Brandon Chappel<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>PLU'S FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Darrin Pluhar<br><b>EMAIL: <\/b><a href='mailto:pluflyinc@mcn.net'>pluflyinc@mcn.net<\/a><br><b>PHONE: <\/b><a href='tel:406-775-6640'>406-775-6640<\/a><br><b>CITY/STATE: <\/b>Ekalaka, MT<br><b>CHIEF PILOT: <\/b>Darrin Pluhar<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>PREMIER AG PRODUCTS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Matt Jorissen<br><b>EMAIL: <\/b><a href='mailto:matt.jorissen1@gmail.com'>matt.jorissen1@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-840-8540'>701-840-8540<\/a><br><b>CITY/STATE: <\/b>Rogers, ND<br><b>CHIEF PILOT: <\/b>Matt Jorissen<br><b>ADDL PILOTS: <\/b>Joshua Brouse<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>PRO AG SOLUTIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Cory Palm<br><b>EMAIL: <\/b><a href='mailto:proagsolutionsnd@gmail.com'>proagsolutionsnd@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-516-4660'>701-516-4660<\/a><br><b>CITY/STATE: <\/b>Bismarck, ND<br><b>CHIEF PILOT: <\/b>Cory Palm<br><b>ADDL PILOTS: <\/b>Nicole Doheny, Kolten Ohnell, Jamison Mutschler<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>ROBERTS AG AIR<\/b><br><br><b>OWNER/OPERATOR: <\/b>Blane Robert<br><b>EMAIL: <\/b><a href='mailto:agair@drtel.net'>agair@drtel.net<\/a><br><b>PHONE: <\/b><a href='tel:701-320-4189'>701-320-4189<\/a><br><b>CITY/STATE: <\/b>Lamoure, ND<br><b>CHIEF PILOT: <\/b>Blane Robert<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>RUBBERT AERIAL INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Chris Zimmer<br><b>EMAIL: <\/b><a href='mailto:zimmer_8@hotmail.com'>zimmer_8@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-272-6322'>701-272-6322<\/a><br><b>CITY/STATE: <\/b>Upham, ND<br><b>CHIEF PILOT: <\/b>Chris Zimmer<br><b>ADDL PILOTS: <\/b>Jan Rubbert, Jordan Loewen, Bradley Berentson<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>RYANS AERIAL SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Stephan<br><b>EMAIL: <\/b><a href='mailto:rasllc2010@gmail.com'>rasllc2010@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-263-5580'>701-263-5580<\/a><br><b>CITY/STATE: <\/b>Lansford, ND<br><b>CHIEF PILOT: <\/b>Ryan Stephan<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>SCHNEIDER AERIAL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Steve Schneider<br><b>EMAIL: <\/b><a href='mailto:schneideraerial@gondtc.com'>schneideraerial@gondtc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-208-1630'>701-208-1630<\/a><br><b>CITY/STATE: <\/b>Rugby, ND<br><b>CHIEF PILOT: <\/b>Steve Schneider<br><b>ADDL PILOTS: <\/b>Rodney Erickson, Jaden Schneider, Kaelin Schneider<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SECKERSON AERIAL SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Corey Seckerson<br><b>EMAIL: <\/b><a href='mailto:cloudcover72@gmail.com'>cloudcover72@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-269-2992'>701-269-2992<\/a><br><b>CITY/STATE: <\/b>Jamestown, ND<br><b>CHIEF PILOT: <\/b>Corey Seckerson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SKY TRACTOR<\/b><br><br><b>OWNER/OPERATOR: <\/b>Travis Amb<br><b>EMAIL: <\/b><a href='mailto:travis.amb113@gmail.com'>travis.amb113@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-361-5695'>701-361-5695<\/a><br><b>CITY/STATE: <\/b>Hillsboro, ND<br><b>CHIEF PILOT: <\/b>Travis Amb<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SKYTECH AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kyle Krueger<br><b>EMAIL: <\/b><a href='mailto:kyle@skytechag.com'>kyle@skytechag.com<\/a><br><b>PHONE: <\/b><a href='tel:701-240-3451'>701-240-3451<\/a><br><b>CITY/STATE: <\/b>Sawyer, ND<br><b>CHIEF PILOT: <\/b>Kyle Krueger<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>SOUTHWEST AERIAL LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Dan Swanson<br><b>EMAIL: <\/b><a href='mailto:swan10@ndsupernet.com'>swan10@ndsupernet.com<\/a><br><b>PHONE: <\/b><a href='tel:701-523-4845'>701-523-4845<\/a><br><b>CITY/STATE: <\/b>Bowman, ND<br><b>CHIEF PILOT: <\/b>Steve Iglehart<br><b>ADDL PILOTS: <\/b>Colt Rasmussen<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SPOTTERS AERIAL AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Joshua Dipippo<br><b>EMAIL: <\/b><a href='mailto:mackenzie@spottersaa.com'>mackenzie@spottersaa.com<\/a><br><b>PHONE: <\/b><a href='tel:605-630-1044'>605-630-1044<\/a><br><b>CITY/STATE: <\/b>Killdeer, ND<br><b>CHIEF PILOT: <\/b>Joshua Dipippo<br><b>ADDL PILOTS: <\/b>Bryce Morgan<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>SPRAGUES AERIAL SPRAYING INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Robert Sprague<br><b>EMAIL: <\/b><a href='mailto:robertsprague@daktel.com'>robertsprague@daktel.com<\/a><br><b>PHONE: <\/b><a href='tel:701-320-2890'>701-320-2890<\/a><br><b>CITY/STATE: <\/b>Courtenay, ND<br><b>CHIEF PILOT: <\/b>Robert Sprague<br><b>ADDL PILOTS: <\/b>Ethan Sprague<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>TALL TOWERS AG SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Toby Mcpherson<br><b>EMAIL: <\/b><a href='mailto:office@talltowersaviation.com'>office@talltowersaviation.com<\/a><br><b>PHONE: <\/b><a href='tel:701-668-2302'>701-668-2302<\/a><br><b>CITY/STATE: <\/b>Page, ND<br><b>CHIEF PILOT: <\/b>Toby Mcpherson<br><b>ADDL PILOTS: <\/b>Mike Schroeder, John Nienhuis<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>TLB AIR LLP<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Alme<br><b>EMAIL: <\/b><a href='mailto:ryanalme@msn.com'>ryanalme@msn.com<\/a><br><b>PHONE: <\/b><a href='tel:701-360-7926'>701-360-7926<\/a><br><b>CITY/STATE: <\/b>Grafton, ND<br><b>CHIEF PILOT: <\/b>Ryan Alme<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>VALKYRIE AG SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jonathan Powell<br><b>EMAIL: <\/b><a href='mailto:jonpowell85@live.com'>jonpowell85@live.com<\/a><br><b>PHONE: <\/b><a href='tel:701-640-7999'>701-640-7999<\/a><br><b>CITY/STATE: <\/b>Scranton, ND<br><b>CHIEF PILOT: <\/b>Jonathan Powell<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>VALLEY SPRAYERS INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jayse Wharam<br><b>EMAIL: <\/b><a href='mailto:jaysewharam@hotmail.com'>jaysewharam@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-331-0818'>701-331-0818<\/a><br><b>CITY/STATE: <\/b>Park River, ND<br><b>CHIEF PILOT: <\/b>Jayse Wharam<br><b>ADDL PILOTS: <\/b>Ty Schmitt<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>VECTOR DISEASE CNTL INTL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Gary Simonton<br><b>EMAIL: <\/b><a href='mailto:aerialdivision@vdci.net'>aerialdivision@vdci.net<\/a><br><b>PHONE: <\/b><a href='tel:385-238-0093'>385-238-0093<\/a><br><b>CITY/STATE: <\/b>Little Rock, AR<br><b>CHIEF PILOT: <\/b>Rob Aslesen<br><b>ADDL PILOTS: <\/b>Jon Aslesen, Chandler Ladner<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WALHALLA AG SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>David Carignan<br><b>EMAIL: <\/b><a href='mailto:walhallaagservice@utma.com'>walhallaagservice@utma.com<\/a><br><b>PHONE: <\/b><a href='tel:701-549-3500'>701-549-3500<\/a><br><b>CITY/STATE: <\/b>Walhalla, ND<br><b>CHIEF PILOT: <\/b>David Carignan<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WALKERS LAWNCARE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Walker<br><b>EMAIL: <\/b><a href='mailto:walkerslawncare@hotmail.com'>walkerslawncare@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-2744'>218-779-2744<\/a><br><b>CITY/STATE: <\/b>Hillsboro, ND<br><b>CHIEF PILOT: <\/b>Ryan Walker<br><b>ADDL PILOTS: <\/b>Jordan Aviso, Eli Kueber<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>WILD AIR SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Isaac Wilde<br><b>EMAIL: <\/b><a href='mailto:wildeairservice@gmail.com'>wildeairservice@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:605-860-8692'>605-860-8692<\/a><br><b>CITY/STATE: <\/b>Volga, SD<br><b>CHIEF PILOT: <\/b>Jordan Williams<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WILD RICE AIR AG INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rodney Erickson<br><b>EMAIL: <\/b><a href='mailto:r2inc@hotmail.com'>r2inc@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-367-5243'>701-367-5243<\/a><br><b>CITY/STATE: <\/b>Rutland, ND<br><b>CHIEF PILOT: <\/b>Rodney Erickson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WINFIELD UNITED<\/b><br><br><b>OWNER/OPERATOR: <\/b>Matthew Mittag<br><b>EMAIL: <\/b><a href='mailto:mmittag@landolakes.com'>mmittag@landolakes.com<\/a><br><b>PHONE: <\/b><a href='tel:701-970-9677'>701-970-9677<\/a><br><b>CITY/STATE: <\/b>Fargo, ND<br><b>CHIEF PILOT: <\/b>Alexander Curlee<br><b>ADDL PILOTS: <\/b>Dakota Wolfe<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>WINFIELD UNITED<\/b><br><br><b>OWNER/OPERATOR: <\/b>Alexis Dickson<br><b>EMAIL: <\/b><a href='mailto:adickson@landolakes.com'>adickson@landolakes.com<\/a><br><b>PHONE: <\/b><a href='tel:701-371-3684'>701-371-3684<\/a><br><b>CITY/STATE: <\/b>Galesburg, ND<br><b>CHIEF PILOT: <\/b>Alexis Dickson<br><b>ADDL PILOTS: <\/b>Troy Gullekson<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>"],null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addLegend","args":[{"colors":["#658849","#34499B"],"labels":["Manned","Unmanned"],"na_color":null,"na_label":"NA","opacity":0.5,"position":"topright","type":"factor","title":"ND Licensed Aerial Applicators<br>2026 Applicators as of May 19, 2026","extra":null,"layerId":null,"className":"info legend","group":null}]},{"method":"addLayersControl","args":[[],["Manned","Unmanned"],{"collapsed":false,"autoZIndex":true,"position":"topright"}]},{"method":"addSearchOSM","args":[{"moveToLocation":true,"zoom":17,"container":"","minLength":1,"initial":true,"casesensitive":false,"autoType":true,"delayType":400,"tooltipLimit":-1,"tipAutoSubmit":true,"firstTipSubmit":false,"autoResize":true,"collapsed":true,"autoCollapse":false,"autoCollapseTime":1200,"textErr":"Location Not Found","textCancel":"Cancel","textPlaceholder":"Address Search...","position":"topleft","hideMarkerOnCollapse":false,"marker":{"animate":true,"circle":{"radius":5,"weight":5,"color":"#e03","stroke":true,"fill":true}}}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]}],"limits":{"lat":[34.77197969426671,48.92549062414044],"lng":[-104.7413293833176,-92.33300460068237]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n    function(el, x) {\n      document.title = 'ND Licensed Aerial Applicators';\n    }\n  ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
-<script type="application/htmlwidget-sizing" data-for="htmlwidget-16df9c4aac7069f948fb">{"viewer":{"width":"100%","height":"100vh","padding":0,"fill":false},"browser":{"width":"100%","height":"100vh","padding":0,"fill":false}}</script>
+<script type="application/json" data-for="htmlwidget-44c21ae78d3bae65c887">{"x":{"options":{"minZoom":5,"maxZoom":11,"crs":{"crsClass":"L.CRS.EPSG3857","code":null,"proj4def":null,"projectedBounds":null,"options":{}}},"calls":[{"method":"addTiles","args":["https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",null,"Standard",{"minZoom":0,"maxZoom":18,"tileSize":256,"subdomains":"abc","errorTileUrl":"","tms":false,"noWrap":false,"zoomOffset":0,"zoomReverse":false,"opacity":1,"zIndex":1,"detectRetina":false,"attribution":"&copy; <a href=\"https://www.openstreetmap.org/copyright\">OpenStreetMap<\/a> contributors &copy; <a href=\"https://carto.com/attributions\">CARTO<\/a>"}]},{"method":"addProviderTiles","args":["CartoDB.Positron",null,"Light",{"errorTileUrl":"","noWrap":false,"detectRetina":false}]},{"method":"addCircleMarkers","args":[[47.07155898617113,48.92549062414044,46.42686668702648,46.35422287814995,46.44868059761157,48.35485287611676,47.78629719617681,46.87412891762598,46.26199578128332,46.8618195007893,45.0151588626301,48.10632027408757,48.4116355600385,45.92992382576126,45.43934221548751,47.34562333573541,46.71759376356277,47.08123856291984,45.73454970812062,46.13313689585959,43.62868004987153,48.04083379469657,48.77551931527251,48.36913485801573,46.89196657698137,48.74228964885209,47.29549268650831,47.83195227757842,45.78714441582705,48.86038702681173,47.37741869750337,47.29731292016678,47.80444076493324,48.09346528735815,36.6745441875527,48.01016216559587,48.1868291702033,47.81839879674484,46.51482427424639,46.85148317354243,46.09283249534394,48.58995575421747,48.37847360593197,48.76843429906373,46.3731936838175,47.73265977090681,48.69955446917781,46.78295301858466,48.6957304910475,46.8254715797672,46.6437115511003,44.25795506010447,48.73981351218445,46.19717381421791,48.76484561371495,46.83259579561685,48.37264903578834,48.81879895149676,48.34385109860916,46.9166865555697,44.53764331088629,46.91321624240809,46.64079135101634,48.43184335785152,46.65402788389564,47.69692589863891,47.76705727344302,47.1373408217942,48.19110872276522,48.15822255748726,46.8855762657416,45.92696575373534,46.95006116358181,46.22649676612772,44.65441806307575,48.34418871163793,46.23018463903088,45.46543394893197,47.86804496511651,45.92007564979619,48.50622055720225,47.45597049614337,46.91446189771737,48.79303813384508,46.39895283579646,44.01594608910297,46.91755259049872,45.86861089578819,47.0684237399211,46.74458097747453,46.34438797761594,48.52918735236255,48.58924938584953,48.39109067656371,46.95023536142163,47.4563242191379,48.07339804128029,46.10946757431221,47.3850868357564,47.2292499506917,47.20343899568829,48.38957528732821,46.13400057527864,48.35780485285959,34.77197969426671,48.85770925706333,47.4279579335976,44.37074014811478,46.11566891503624,46.8333486862524,47.31740992706233],[-96.81739824846674,-97.96001506945662,-98.34101753572646,-96.05988712121942,-97.64408382834291,-100.4183777328605,-97.60009817475104,-96.58016011640098,-97.1249806849753,-102.0860829945532,-93.47859210153962,-103.6298897185839,-101.0330031552505,-102.6117756429025,-101.0580275408958,-96.78648221954137,-96.60405194595349,-97.21629354432889,-97.3921809243359,-98.07386687114709,-94.08547833934578,-101.9478634591346,-101.5064467886225,-98.4986984034648,-103.199036161623,-97.6207595002256,-97.39407057126468,-97.66320378960691,-97.77275732304243,-99.60050911247954,-98.1258837783051,-101.7860236573722,-96.64342442781667,-103.5961608681144,-97.83193469408909,-97.17961630134469,-98.81011325182459,-99.93077863809232,-97.72997706009942,-100.8779964318799,-99.42504006962344,-97.12868473086924,-97.44432662609643,-98.39720087647758,-97.64328599154085,-96.59693068789977,-101.8494363457762,-95.89778283041947,-98.34853546877342,-97.00291198968726,-97.28591811411422,-96.76184846753439,-97.56795983901984,-97.63102466529347,-98.36606057915824,-102.844925430479,-100.0266688012832,-98.3297585965623,-102.9303565273927,-96.74046765756208,-99.48893222535152,-98.24681885195969,-95.56813975903688,-101.6589720024404,-100.9165580553176,-99.67827082758254,-103.3367348018151,-104.7413293833176,-103.6148414878875,-98.33386667845626,-99.33511776020993,-100.3160428601454,-97.33573977139585,-99.60068535938095,-93.44513979817081,-101.1038950097241,-97.43924699416061,-95.82423906448099,-97.61118323055038,-95.37985716424279,-97.86350334976535,-99.12471197098114,-98.04372158038279,-100.4213690675167,-98.73748164516802,-95.44826191428329,-96.82597092382086,-104.5207061374399,-98.25544640899678,-100.7668459447687,-98.25642659854921,-100.7136058149057,-101.3447299228319,-100.018579113007,-98.73421324235203,-97.10864050775511,-101.0158124992482,-103.4276340646126,-102.7738618928632,-98.59705118790023,-97.54325757265251,-97.429391974035,-103.0965252179613,-97.70694592843597,-92.33300460068237,-97.91203938038383,-97.05349120982781,-96.90784757018308,-97.49768531634693,-96.83548084255281,-97.45844545823246],10,null,["Manned","Unmanned","Unmanned","Manned","Manned","Unmanned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Manned","Unmanned","Manned","Manned","Unmanned","Manned","Manned","Manned","Manned","Manned","Unmanned","Manned","Manned","Manned","Manned","Unmanned","Unmanned","Unmanned","Unmanned","Unmanned","Manned","Manned","Manned","Manned","Unmanned","Manned","Manned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Manned","Manned","Manned","Unmanned","Unmanned","Manned","Manned","Manned","Manned","Manned","Manned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Unmanned","Manned","Manned","Unmanned","Manned","Unmanned","Unmanned","Unmanned","Manned","Unmanned","Unmanned","Manned","Unmanned","Manned","Unmanned","Unmanned","Manned","Manned","Unmanned","Manned","Manned","Manned","Unmanned","Manned","Unmanned","Manned","Manned","Manned","Unmanned","Manned","Manned","Manned","Unmanned","Manned","Manned","Unmanned","Unmanned"],{"interactive":true,"className":"","stroke":true,"color":["#658849","#34499B","#34499B","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#658849","#658849","#34499B","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#658849","#34499B","#658849","#34499B","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#34499B"],"weight":5,"opacity":0.5,"fill":true,"fillColor":["#658849","#34499B","#34499B","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#658849","#658849","#34499B","#34499B","#658849","#658849","#658849","#658849","#658849","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#34499B","#34499B","#658849","#658849","#34499B","#658849","#34499B","#34499B","#34499B","#658849","#34499B","#34499B","#658849","#34499B","#658849","#34499B","#34499B","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#658849","#34499B","#658849","#658849","#34499B","#34499B"],"fillOpacity":0.2},null,null,["<b>(PENDING) LOFTON AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Chad Lofton<br><b>EMAIL: <\/b><a href='mailto:chadlofton@hotmail.com'>chadlofton@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-1678'>218-779-1678<\/a><br><b>CITY/STATE: <\/b>Georgetown, MN<br><b>CHIEF PILOT: <\/b>Chad Lofton<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>(PENDING) SMITH, JOEL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Divan Beukes<br><b>EMAIL: <\/b><a href='mailto:joel@ssgrains.com'>joel@ssgrains.com<\/a><br><b>PHONE: <\/b><a href='tel:701-520-9688'>701-520-9688<\/a><br><b>CITY/STATE: <\/b>Walhalla, ND<br><b>CHIEF PILOT: <\/b>Divan Beukes<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>(PENDING) VOGEL, MICHAEL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Vogel<br><b>EMAIL: <\/b><a href='mailto:mikevogel@hotmail.com'>mikevogel@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-320-0624'>701-320-0624<\/a><br><b>CITY/STATE: <\/b>Lamoure, ND<br><b>CHIEF PILOT: <\/b>Michael Vogel<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>(PENDING) WEST CENTRAL AG-AIR INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Lubben<br><b>EMAIL: <\/b><a href='mailto:wcagair@live.com'>wcagair@live.com<\/a><br><b>PHONE: <\/b><a href='tel:218-770-0130'>218-770-0130<\/a><br><b>CITY/STATE: <\/b>Fergus Falls, MN<br><b>CHIEF PILOT: <\/b>Ryan Lubben<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>3RD GEN AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ben Halstenson<br><b>EMAIL: <\/b><a href='mailto:bhalstenson@3rdgenaviation.com'>bhalstenson@3rdgenaviation.com<\/a><br><b>PHONE: <\/b><a href='tel:701-739-5463'>701-739-5463<\/a><br><b>CITY/STATE: <\/b>Lisbon, ND<br><b>CHIEF PILOT: <\/b>Ben Halstenson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>4R FARM INSIGHTS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Mattie Schmitt<br><b>EMAIL: <\/b><a href='mailto:mattie@4rfarminsights.com'>mattie@4rfarminsights.com<\/a><br><b>PHONE: <\/b><a href='tel:701-833-4316'>701-833-4316<\/a><br><b>CITY/STATE: <\/b>Towner, ND<br><b>CHIEF PILOT: <\/b>Mattie Schmitt<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>701 AERIAL APPLICATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Tristen Uglem<br><b>EMAIL: <\/b><a href='mailto:ttuglem@gmail.com'>ttuglem@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-7382'>218-779-7382<\/a><br><b>CITY/STATE: <\/b>Northwood, ND<br><b>CHIEF PILOT: <\/b>Tristen Uglem<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AB SPRAY LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Parker Skolness<br><b>EMAIL: <\/b><a href='mailto:parker.skolness@gmail.com'>parker.skolness@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-866-1977'>701-866-1977<\/a><br><b>CITY/STATE: <\/b>Glyndon, MN<br><b>CHIEF PILOT: <\/b>Parker Skolness<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AERIAL AG DRONE SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brayden Busche<br><b>EMAIL: <\/b><a href='mailto:aerialagdrone@gmail.com'>aerialagdrone@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-660-9230'>701-660-9230<\/a><br><b>CITY/STATE: <\/b>Wyndmere, ND<br><b>CHIEF PILOT: <\/b>Brayden Busche<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AERIAL CROP CARE CO<\/b><br><br><b>OWNER/OPERATOR: <\/b>Pierson Chase<br><b>EMAIL: <\/b><a href='mailto:aerialcrop@westriv.com'>aerialcrop@westriv.com<\/a><br><b>PHONE: <\/b><a href='tel:701-878-4735'>701-878-4735<\/a><br><b>CITY/STATE: <\/b>Hebron, ND<br><b>CHIEF PILOT: <\/b>Person Chase<br><b>ADDL PILOTS: <\/b>Robert Wilson, Kevin Hansen<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AERIAL PLOT<\/b><br><br><b>OWNER/OPERATOR: <\/b>Travis Benson<br><b>EMAIL: <\/b><a href='mailto:travisbenson.mn@gmail.com'>travisbenson.mn@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:320-314-2075'>320-314-2075<\/a><br><b>CITY/STATE: <\/b>Wayzata, MN<br><b>CHIEF PILOT: <\/b>Travis Benson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>AERO SPRAYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rick Marburger<br><b>EMAIL: <\/b><a href='mailto:rckmrbrgr@gmail.com'>rckmrbrgr@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-570-2342'>701-570-2342<\/a><br><b>CITY/STATE: <\/b>Williston, ND<br><b>CHIEF PILOT: <\/b>Rick Marburger<br><b>ADDL PILOTS: <\/b>Dustin Villines, Tanner Overland<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AGRITECH AVIATION INC, MILLER SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jerold Miller<br><b>EMAIL: <\/b><a href='mailto:sales@agritechinc.com'>sales@agritechinc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-728-6614'>701-728-6614<\/a><br><b>CITY/STATE: <\/b>Deering, ND<br><b>CHIEF PILOT: <\/b>Jerold Miller<br><b>ADDL PILOTS: <\/b>Steven Mairs<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIR DAKOTA FLITE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Charles Lindquist<br><b>EMAIL: <\/b><a href='mailto:airdakota@ndsupernet.com'>airdakota@ndsupernet.com<\/a><br><b>PHONE: <\/b><a href='tel:701-567-2069'>701-567-2069<\/a><br><b>CITY/STATE: <\/b>Hettinger, ND<br><b>CHIEF PILOT: <\/b>Charles Lindquist<br><b>ADDL PILOTS: <\/b>Michael Lindquist, James Lindquist<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIR KRAFT SPRAYING INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jake Kraft<br><b>EMAIL: <\/b><a href='mailto:aksjake@gmail.com'>aksjake@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:605-848-2624'>605-848-2624<\/a><br><b>CITY/STATE: <\/b>Timber Lake, SD<br><b>CHIEF PILOT: <\/b>Jake Kraft<br><b>ADDL PILOTS: <\/b>Tyrone Kraft, Tanner Kraft, Isaac Kraft<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIRBORNE CUSTOM SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rob Aslesen<br><b>EMAIL: <\/b><a href='mailto:admin@airborncustomspraying.com'>admin@airborncustomspraying.com<\/a><br><b>PHONE: <\/b><a href='tel:218-456-2465'>218-456-2465<\/a><br><b>CITY/STATE: <\/b>Halstad, MN<br><b>CHIEF PILOT: <\/b>Rob Aslesen<br><b>ADDL PILOTS: <\/b>Jon Aslesen, Marlin Ingebretson, Chad Hanson, Rafael Flores, Josh Maier, Zach Wolf, Jacob Radermacher<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>AIRWORKS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Andrew Aslesen<br><b>EMAIL: <\/b><a href='mailto:andrew@airworksmn.com'>andrew@airworksmn.com<\/a><br><b>PHONE: <\/b><a href='tel:218-770-1248'>218-770-1248<\/a><br><b>CITY/STATE: <\/b>Sabin, MN<br><b>CHIEF PILOT: <\/b>Andrew Aslesen<br><b>ADDL PILOTS: <\/b>Dean Lesmeister<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>ARTHUR AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Matt Hovdenes<br><b>EMAIL: <\/b><a href='mailto:matt.hovdenes@arthurcompanies.com'>matt.hovdenes@arthurcompanies.com<\/a><br><b>PHONE: <\/b><a href='tel:218-790-2765'>218-790-2765<\/a><br><b>CITY/STATE: <\/b>Arthur, ND<br><b>CHIEF PILOT: <\/b>Matt Hovdenes<br><b>ADDL PILOTS: <\/b>Andrew Gerswold<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BAIR AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Craig Bair<br><b>EMAIL: <\/b><a href='mailto:bairaviation@gmail.com'>bairaviation@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:402-366-4300'>402-366-4300<\/a><br><b>CITY/STATE: <\/b>Lake City, SD<br><b>CHIEF PILOT: <\/b>Craig Bair<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BEAR CREEK FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Travis Mcpherson<br><b>EMAIL: <\/b><a href='mailto:bearcreekflying@drtel.net'>bearcreekflying@drtel.net<\/a><br><b>PHONE: <\/b><a href='tel:701-710-1220'>701-710-1220<\/a><br><b>CITY/STATE: <\/b>Oakes, ND<br><b>CHIEF PILOT: <\/b>Travis Mcpherson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BLUE EARTH FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Luke Steier<br><b>EMAIL: <\/b><a href='mailto:carly.steier@hotmail.com'>carly.steier@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:507-526-7264'>507-526-7264<\/a><br><b>CITY/STATE: <\/b>Blue Earth, MN<br><b>CHIEF PILOT: <\/b>Luke Steier<br><b>ADDL PILOTS: <\/b>Jacob Huber, Norbert Gregory, Nathan Tafelmeyer<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BLUE SKIES AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Tyler Fjeldahl<br><b>EMAIL: <\/b><a href='mailto:tyler.fjeldahl@gmail.com'>tyler.fjeldahl@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-822-0854'>701-822-0854<\/a><br><b>CITY/STATE: <\/b>Plaza, ND<br><b>CHIEF PILOT: <\/b>Tyler Fjeldahl<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>BOWERS AERIAL LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Blake Bowers<br><b>EMAIL: <\/b><a href='mailto:bowersaerial@gmail.com'>bowersaerial@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-818-7459'>701-818-7459<\/a><br><b>CITY/STATE: <\/b>Mohall, ND<br><b>CHIEF PILOT: <\/b>Blake Bowers<br><b>ADDL PILOTS: <\/b>Chad Gravesen, Sanjiv Bishesar<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BREKKE AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jess Brekke<br><b>EMAIL: <\/b><a href='mailto:jess@brekkeaviation.com'>jess@brekkeaviation.com<\/a><br><b>PHONE: <\/b><a href='tel:701-644-2618'>701-644-2618<\/a><br><b>CITY/STATE: <\/b>Edmore, ND<br><b>CHIEF PILOT: <\/b>Jess Brekke<br><b>ADDL PILOTS: <\/b>Cristiano Barros Da Costa<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>BUCKSHOT SPRAYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Curtis Buckman<br><b>EMAIL: <\/b><a href='mailto:buckshotspraying@yahoo.com'>buckshotspraying@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:701-575-8477'>701-575-8477<\/a><br><b>CITY/STATE: <\/b>Belfield, ND<br><b>CHIEF PILOT: <\/b>Curtis Buckman<br><b>ADDL PILOTS: <\/b>Cindy Buckman<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>CAVALIER AIR SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jeremy Seng<br><b>EMAIL: <\/b><a href='mailto:jeremycseng@gmail.com'>jeremycseng@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-265-4466'>701-265-4466<\/a><br><b>CITY/STATE: <\/b>Cavalier, ND<br><b>CHIEF PILOT: <\/b>Jeremy Seng<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>CLIFFORD FARMERS COOP ELEVATOR<\/b><br><br><b>OWNER/OPERATOR: <\/b>Steve Baldock<br><b>EMAIL: <\/b><a href='mailto:kody@cliffordfarmerscoop.com'>kody@cliffordfarmerscoop.com<\/a><br><b>PHONE: <\/b><a href='tel:701-289-0018'>701-289-0018<\/a><br><b>CITY/STATE: <\/b>Clifford, ND<br><b>CHIEF PILOT: <\/b>Ryan Groth<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>CUSTOM CROP CARE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Derek Morten<br><b>EMAIL: <\/b><a href='mailto:derekmorten39@gmail.com'>derekmorten39@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-6637'>218-779-6637<\/a><br><b>CITY/STATE: <\/b>Larimore, ND<br><b>CHIEF PILOT: <\/b>Derek Morten<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAKOTA AG SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Furman<br><b>EMAIL: <\/b><a href='mailto:dasinc@venturecomm.net'>dasinc@venturecomm.net<\/a><br><b>PHONE: <\/b><a href='tel:605-448-2264'>605-448-2264<\/a><br><b>CITY/STATE: <\/b>Britton, SD<br><b>CHIEF PILOT: <\/b>Craig Bair<br><b>ADDL PILOTS: <\/b>Darrin Pluhar<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAKOTA AIR SPRAY<\/b><br><br><b>OWNER/OPERATOR: <\/b>Philip Soukup<br><b>EMAIL: <\/b><a href='mailto:psoukup@dakotaairspray.com'>psoukup@dakotaairspray.com<\/a><br><b>PHONE: <\/b><a href='tel:701-550-0134'>701-550-0134<\/a><br><b>CITY/STATE: <\/b>Rolla, ND<br><b>CHIEF PILOT: <\/b>Erik Klindt<br><b>ADDL PILOTS: <\/b>Alexander Viger, Paul Deal<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAKOTA DRONE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Dane Mueller<br><b>EMAIL: <\/b><a href='mailto:dmueller1305@gmail.com'>dmueller1305@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-789-1305'>701-789-1305<\/a><br><b>CITY/STATE: <\/b>Cooperstown, ND<br><b>CHIEF PILOT: <\/b>Dane Mueller<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>DAKOTA HELICOPTERS INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Shawn Morten<br><b>EMAIL: <\/b><a href='mailto:smorten@dakotahelicopters.com'>smorten@dakotahelicopters.com<\/a><br><b>PHONE: <\/b><a href='tel:701-873-4100'>701-873-4100<\/a><br><b>CITY/STATE: <\/b>Beulah, ND<br><b>CHIEF PILOT: <\/b>Shawn Morten<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DAN'S FLYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Daniel Geist<br><b>EMAIL: <\/b><a href='mailto:dansflyingservice@gmail.com'>dansflyingservice@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-281-1372'>218-281-1372<\/a><br><b>CITY/STATE: <\/b>Crookston, MN<br><b>CHIEF PILOT: <\/b>Daniel Geist<br><b>ADDL PILOTS: <\/b>Tyler Ness, Andreas Geist<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DEKALB AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Fletcher Dekalb<br><b>EMAIL: <\/b><a href='mailto:fdekalb@gmail.com'>fdekalb@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:509-322-6543'>509-322-6543<\/a><br><b>CITY/STATE: <\/b>Williston, ND<br><b>CHIEF PILOT: <\/b>Fletcher Dekalb<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DETERDING AERIAL LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jim Deterding<br><b>EMAIL: <\/b><a href='mailto:deterdingaerial@yahoo.com'>deterdingaerial@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:580-532-4490'>580-532-4490<\/a><br><b>CITY/STATE: <\/b>Pond Creek, OK<br><b>CHIEF PILOT: <\/b>Jacob Severin<br><b>ADDL PILOTS: <\/b>Daniel Yoder<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>DONALDSON PRECISION SPRAYING LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ethan Donaldson<br><b>EMAIL: <\/b><a href='mailto:hallockethan@gmail.com'>hallockethan@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-410-8049'>701-410-8049<\/a><br><b>CITY/STATE: <\/b>Manvel, ND<br><b>CHIEF PILOT: <\/b>Ethan Donaldson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>DRONE ZONE SPRAY SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Veer<br><b>EMAIL: <\/b><a href='mailto:mveer@gondtc.com'>mveer@gondtc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-381-9707'>701-381-9707<\/a><br><b>CITY/STATE: <\/b>Devils Lake, ND<br><b>CHIEF PILOT: <\/b>Michael Veer<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>EAGLE EYE DRONE SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Shane Martinson<br><b>EMAIL: <\/b><a href='mailto:shanemartinson@hotmail.com'>shanemartinson@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-399-6016'>701-399-6016<\/a><br><b>CITY/STATE: <\/b>Harvey, ND<br><b>CHIEF PILOT: <\/b>Shane Martinson<br><b>ADDL PILOTS: <\/b>Brevon Martinson<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>ELEVATED AG SOLUTIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Spencer Schwab<br><b>EMAIL: <\/b><a href='mailto:bigssfarms@gmail.com'>bigssfarms@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-7640'>701-680-7640<\/a><br><b>CITY/STATE: <\/b>Lisbon, ND<br><b>CHIEF PILOT: <\/b>Spencer Schwab<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>FIELD FLIGHT SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jamie Seedorf<br><b>EMAIL: <\/b><a href='mailto:jamieseedorf737@gmail.com'>jamieseedorf737@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-498-0138'>701-498-0138<\/a><br><b>CITY/STATE: <\/b>Mandan, ND<br><b>CHIEF PILOT: <\/b>Jamie Seedorf<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>FLY LOW AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Cally Arndt<br><b>EMAIL: <\/b><a href='mailto:flylownd@gmail.com'>flylownd@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:719-239-1558'>719-239-1558<\/a><br><b>CITY/STATE: <\/b>Ashley, ND<br><b>CHIEF PILOT: <\/b>Tyson Lukasavige<br><b>ADDL PILOTS: <\/b>Tyler Chamberlain, Jason Hurt<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FLYING G AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Troy Georgeson<br><b>EMAIL: <\/b><a href='mailto:flyingg@polarcomm.com'>flyingg@polarcomm.com<\/a><br><b>PHONE: <\/b><a href='tel:701-454-6588'>701-454-6588<\/a><br><b>CITY/STATE: <\/b>Drayton, ND<br><b>CHIEF PILOT: <\/b>Troy Georgeson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FLYITON AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Lynn Johnson<br><b>EMAIL: <\/b><a href='mailto:ljohn1340@aol.com'>ljohn1340@aol.com<\/a><br><b>PHONE: <\/b><a href='tel:701-360-5966'>701-360-5966<\/a><br><b>CITY/STATE: <\/b>Grafton, ND<br><b>CHIEF PILOT: <\/b>Lynn Johnson<br><b>ADDL PILOTS: <\/b>Kyle Sveen, Robert Johnson<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FOREST FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kevin Forest<br><b>EMAIL: <\/b><a href='mailto:forestflying@yahoo.com'>forestflying@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:701-305-0072'>701-305-0072<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>Kevin Forest<br><b>ADDL PILOTS: <\/b>David Hart, Jesse Fetsch<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>FROEMKE AERIAL SOLUTIONS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Steven Froemke<br><b>EMAIL: <\/b><a href='mailto:info@froemkeas.com'>info@froemkeas.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-0564'>701-680-0564<\/a><br><b>CITY/STATE: <\/b>Lisbon, ND<br><b>CHIEF PILOT: <\/b>Steven Froemke<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>GASPER AIR SPRAY INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Gasper<br><b>EMAIL: <\/b><a href='mailto:gasperairspray@gmail.com'>gasperairspray@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-289-0076'>218-289-0076<\/a><br><b>CITY/STATE: <\/b>Crookston, MN<br><b>CHIEF PILOT: <\/b>Michael Gasper<br><b>ADDL PILOTS: <\/b>Brady Davis<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>GREAT PLAINS AERO INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Julius Brekhus<br><b>EMAIL: <\/b><a href='mailto:paklbrek@restel.com'>paklbrek@restel.com<\/a><br><b>PHONE: <\/b><a href='tel:701-848-6116'>701-848-6116<\/a><br><b>CITY/STATE: <\/b>Tolley, ND<br><b>CHIEF PILOT: <\/b>Julius Brekhus<br><b>ADDL PILOTS: <\/b>Dakota Petersen, Paul Soulek, Joe Baker, <br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HANSEN AG AIR LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ross Hansen<br><b>EMAIL: <\/b><a href='mailto:ross.p.hansen@icloud.com'>ross.p.hansen@icloud.com<\/a><br><b>PHONE: <\/b><a href='tel:218-849-6300'>218-849-6300<\/a><br><b>CITY/STATE: <\/b>Detroit Lakes, MN<br><b>CHIEF PILOT: <\/b>Ross Hansen<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HART FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>David Hart<br><b>EMAIL: <\/b><a href='mailto:tmmtrans@yahoo.com'>tmmtrans@yahoo.com<\/a><br><b>PHONE: <\/b><a href='tel:701-305-0458'>701-305-0458<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>David Hart<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HARVEST PARTNERS GENERAL PARTNERSHIP<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jacob Clauson<br><b>EMAIL: <\/b><a href='mailto:clausonja92@gmail.com'>clausonja92@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-5676'>701-680-5676<\/a><br><b>CITY/STATE: <\/b>Mapleton, ND<br><b>CHIEF PILOT: <\/b>Jacob Clauson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HEUER AGRI DRONE SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Eleanor Heuer<br><b>EMAIL: <\/b><a href='mailto:heueragridrone@outlook.com'>heueragridrone@outlook.com<\/a><br><b>PHONE: <\/b><a href='tel:701-238-9046'>701-238-9046<\/a><br><b>CITY/STATE: <\/b>Leonard, ND<br><b>CHIEF PILOT: <\/b>Eleanor Heuer<br><b>ADDL PILOTS: <\/b>Matt Heuer<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HILLHEAD DRONE SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Thad Grimsrud<br><b>EMAIL: <\/b><a href='mailto:thadgrimsrud@gmail.com'>thadgrimsrud@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:605-695-5600'>605-695-5600<\/a><br><b>CITY/STATE: <\/b>Brookings, SD<br><b>CHIEF PILOT: <\/b>Thad Grimsrud<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>HINKLE AIRSPRAY INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jason Hinkle<br><b>EMAIL: <\/b><a href='mailto:sarahinkle37@gmail.com'>sarahinkle37@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-265-8405'>701-265-8405<\/a><br><b>CITY/STATE: <\/b>Cavalier, ND<br><b>CHIEF PILOT: <\/b>Jason Hinkle<br><b>ADDL PILOTS: <\/b>Justin Hinkle<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HOISTAD FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rick Hoistad<br><b>EMAIL: <\/b><a href='mailto:ajstroh@gmail.com'>ajstroh@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-308-0169'>701-308-0169<\/a><br><b>CITY/STATE: <\/b>Gwinner, ND<br><b>CHIEF PILOT: <\/b>Andrew Stroh<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HOWATT AIR INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Howatt<br><b>EMAIL: <\/b><a href='mailto:howattair@gmail.com'>howattair@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-370-9710'>701-370-9710<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>Ryan Howatt<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>HYDRO AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brent Wanner<br><b>EMAIL: <\/b><a href='mailto:wanner_4020@hotmail.com'>wanner_4020@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-290-6663'>701-290-6663<\/a><br><b>CITY/STATE: <\/b>Dickinson, ND<br><b>CHIEF PILOT: <\/b>Brent Wanner<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>IDEAL SEED SOLUTIONS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jason Brossart<br><b>EMAIL: <\/b><a href='mailto:idealseedsolutions@gmail.com'>idealseedsolutions@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-208-0424'>701-208-0424<\/a><br><b>CITY/STATE: <\/b>Rugby, ND<br><b>CHIEF PILOT: <\/b>Jason Brossart<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>KH AVIATION LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Howatt<br><b>EMAIL: <\/b><a href='mailto:howattair@gmail.com'>howattair@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-370-9710'>701-370-9710<\/a><br><b>CITY/STATE: <\/b>Langdon, ND<br><b>CHIEF PILOT: <\/b>Ryan Howatt<br><b>ADDL PILOTS: <\/b>Daniel Kubal<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>KNUTSON FLYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Eugene Knutson<br><b>EMAIL: <\/b><a href='mailto:kflyer@nccray.com'>kflyer@nccray.com<\/a><br><b>PHONE: <\/b><a href='tel:701-641-3276'>701-641-3276<\/a><br><b>CITY/STATE: <\/b>Tioga, ND<br><b>CHIEF PILOT: <\/b>Eugene Knutson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>KRACKE SPRAYING SERVICE INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Curtis Kracke<br><b>EMAIL: <\/b><a href='mailto:curtiskracke@gmail.com'>curtiskracke@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-799-9008'>701-799-9008<\/a><br><b>CITY/STATE: <\/b>Fargo, ND<br><b>CHIEF PILOT: <\/b>Curtis Kracke<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>KROEPLIN AIR SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Doug Kroeplin<br><b>EMAIL: <\/b><a href='mailto:makayla@kroeplinair.com'>makayla@kroeplinair.com<\/a><br><b>PHONE: <\/b><a href='tel:605-852-2030'>605-852-2030<\/a><br><b>CITY/STATE: <\/b>Highmore, SD<br><b>CHIEF PILOT: <\/b>Levi Stoddard<br><b>ADDL PILOTS: <\/b>Mark Becker<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LAKEVIEW AVIATION INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brian Welken<br><b>EMAIL: <\/b><a href='mailto:brian@seenterprisesinc.com'>brian@seenterprisesinc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-840-8784'>701-840-8784<\/a><br><b>CITY/STATE: <\/b>Sanborn, ND<br><b>CHIEF PILOT: <\/b>Brian Welken<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LARSON HELICOPTERS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Michael Larson<br><b>EMAIL: <\/b><a href='mailto:larheli@arvig.net'>larheli@arvig.net<\/a><br><b>PHONE: <\/b><a href='tel:218-346-5719'>218-346-5719<\/a><br><b>CITY/STATE: <\/b>Perham, MN<br><b>CHIEF PILOT: <\/b>Michael Larson<br><b>ADDL PILOTS: <\/b>Dylan Larson<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LIMKE, BRAD<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brad Limke<br><b>EMAIL: <\/b><a href='mailto:brad.limke@gmail.com'>brad.limke@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-509-3953'>701-509-3953<\/a><br><b>CITY/STATE: <\/b>Carpio, ND<br><b>CHIEF PILOT: <\/b>Brad Limke<br><b>ADDL PILOTS: <\/b>Michael Limke<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>LITTLE HEART APPLICATORS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Logan Ripple<br><b>EMAIL: <\/b><a href='mailto:caveman9112@gmail.com'>caveman9112@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:970-623-0299'>970-623-0299<\/a><br><b>CITY/STATE: <\/b>Saint Anthony, ND<br><b>CHIEF PILOT: <\/b>Logan Ripple<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>LOCAL AG SOLUTIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Taryn Doan<br><b>EMAIL: <\/b><a href='mailto:tarynallmaras@gmail.com'>tarynallmaras@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-391-6130'>701-391-6130<\/a><br><b>CITY/STATE: <\/b>Fessenden, ND<br><b>CHIEF PILOT: <\/b>Patrick Doan<br><b>ADDL PILOTS: <\/b>Taryn Allmaras<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>LT ENTERPRISES INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Luke Taylor<br><b>EMAIL: <\/b><a href='mailto:luke@ltenterprisesnd.com'>luke@ltenterprisesnd.com<\/a><br><b>PHONE: <\/b><a href='tel:701-570-2646'>701-570-2646<\/a><br><b>CITY/STATE: <\/b>Watford City, ND<br><b>CHIEF PILOT: <\/b>Luke Taylor<br><b>ADDL PILOTS: <\/b>Jonathan Hays, Adam Taylor, Rick Foss, Jeremy Renken<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>LYTLE DRONE APPLICATIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Tim Lytle<br><b>EMAIL: <\/b><a href='mailto:tdblytle@midrivers.com'>tdblytle@midrivers.com<\/a><br><b>PHONE: <\/b><a href='tel:406-855-6097'>406-855-6097<\/a><br><b>CITY/STATE: <\/b>Glendive, MT<br><b>CHIEF PILOT: <\/b>Tim Lytle<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MASTER OF NONE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Shawn Steinberger<br><b>EMAIL: <\/b><a href='mailto:shawn@masterofnonellc.com'>shawn@masterofnonellc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-580-5664'>701-580-5664<\/a><br><b>CITY/STATE: <\/b>Williston, ND<br><b>CHIEF PILOT: <\/b>Shawn Steinberger<br><b>ADDL PILOTS: <\/b>Noah Farmer, Dillon Farmer<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MATEJCEK INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kamron Matejcek<br><b>EMAIL: <\/b><a href='mailto:kamron.matejcek@gmail.com'>kamron.matejcek@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-270-9921BROCKET'>701-270-9921BROCKET<\/a><br><b>CITY/STATE: <\/b>Brocket, ND<br><b>CHIEF PILOT: <\/b>Kamron Matejcek<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MEDINA FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brian Rau<br><b>EMAIL: <\/b><a href='mailto:medinaflying@aol.com'>medinaflying@aol.com<\/a><br><b>PHONE: <\/b><a href='tel:701-320-9505'>701-320-9505<\/a><br><b>CITY/STATE: <\/b>Medina, ND<br><b>CHIEF PILOT: <\/b>Brian Rau<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>MEYER DRONE SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Samuel Meyer<br><b>EMAIL: <\/b><a href='mailto:samuel.meyer02@gmail.com'>samuel.meyer02@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-609-6788'>701-609-6788<\/a><br><b>CITY/STATE: <\/b>Pollock, SD<br><b>CHIEF PILOT: <\/b>Samuel Meyer<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MIDWEST CUSTOM AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Derek Wunderlich<br><b>EMAIL: <\/b><a href='mailto:derek@midwestcustomag.com'>derek@midwestcustomag.com<\/a><br><b>PHONE: <\/b><a href='tel:701-630-4713'>701-630-4713<\/a><br><b>CITY/STATE: <\/b>Wheatland, ND<br><b>CHIEF PILOT: <\/b>Derek Wunderlich<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MIDWEST DRONE APPLICATORS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Cole Stock<br><b>EMAIL: <\/b><a href='mailto:midwestdrone24@gmail.com'>midwestdrone24@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-321-1688'>701-321-1688<\/a><br><b>CITY/STATE: <\/b>Wishek, ND<br><b>CHIEF PILOT: <\/b>Cole Stock<br><b>ADDL PILOTS: <\/b>Zachary Fischer<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MIDWEST SKYDRONE SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Bumann<br><b>EMAIL: <\/b><a href='mailto:ryanbumann@hotmail.com'>ryanbumann@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:952-607-7620'>952-607-7620<\/a><br><b>CITY/STATE: <\/b>Prior Lake, MN<br><b>CHIEF PILOT: <\/b>Ryan Bumann<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MILLER SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jerold Miller<br><b>EMAIL: <\/b><a href='mailto:sales@agritechinc.com'>sales@agritechinc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-833-5363'>701-833-5363<\/a><br><b>CITY/STATE: <\/b>Deering, ND<br><b>CHIEF PILOT: <\/b>Jerold Miller<br><b>ADDL PILOTS: <\/b>Steven Mairs<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>MILNOR AG AIR INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Mark Gainor<br><b>EMAIL: <\/b><a href='mailto:markgainor@icloud.com'>markgainor@icloud.com<\/a><br><b>PHONE: <\/b><a href='tel:701-680-1001'>701-680-1001<\/a><br><b>CITY/STATE: <\/b>Milnor, ND<br><b>CHIEF PILOT: <\/b>Mark Gainor<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>MINNKOTA AERIAL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Andrew Steiner<br><b>EMAIL: <\/b><a href='mailto:andrew@minnkotaaerial.com'>andrew@minnkotaaerial.com<\/a><br><b>PHONE: <\/b><a href='tel:320-288-6107'>320-288-6107<\/a><br><b>CITY/STATE: <\/b>Hancock, MN<br><b>CHIEF PILOT: <\/b>Andrew Steiner<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>MORTEN AERO AERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jesse Morten<br><b>EMAIL: <\/b><a href='mailto:jessemorten@hotmail.com'>jessemorten@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-4244'>218-779-4244<\/a><br><b>CITY/STATE: <\/b>Larimore, ND<br><b>CHIEF PILOT: <\/b>Jesse Morten<br><b>ADDL PILOTS: <\/b>Derek Morten, Richard Goetz, Matthew Schanilec<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>NATURAL NORTH LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kevin Behrens<br><b>EMAIL: <\/b><a href='mailto:natural.northmn@gmail.com'>natural.northmn@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-297-0110'>218-297-0110<\/a><br><b>CITY/STATE: <\/b>Alexandria, MN<br><b>CHIEF PILOT: <\/b>Kevin Behrens<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NE AERIAL DRONE SPRAYING LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Adam Olson<br><b>EMAIL: <\/b><a href='mailto:neaerialdronesprayingllc@gmail.com'>neaerialdronesprayingllc@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-331-2268'>701-331-2268<\/a><br><b>CITY/STATE: <\/b>Edinburg, ND<br><b>CHIEF PILOT: <\/b>Adam Olson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NODAK DRONES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Mason Wede<br><b>EMAIL: <\/b><a href='mailto:nodakdrones@gmail.com'>nodakdrones@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-650-8536'>701-650-8536<\/a><br><b>CITY/STATE: <\/b>Carrington, ND<br><b>CHIEF PILOT: <\/b>Mason Wede<br><b>ADDL PILOTS: <\/b>Alexander Menke, Gregory Grenz<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NORTH VALLEY AIRCRAFT INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jarrod Lindemann<br><b>EMAIL: <\/b><a href='mailto:andrea@northvalleyaircraft.com'>andrea@northvalleyaircraft.com<\/a><br><b>PHONE: <\/b><a href='tel:701-845-2100'>701-845-2100<\/a><br><b>CITY/STATE: <\/b>Valley City, ND<br><b>CHIEF PILOT: <\/b>Jarrod Lindemann<br><b>ADDL PILOTS: <\/b>Paul Lindemann<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>NORTHERN EXPANSE AERIAL SOLUTIONS<\/b><br><br><b>OWNER/OPERATOR: <\/b>Scott Robertson<br><b>EMAIL: <\/b><a href='mailto:northernexpanseaerial@gmail.com'>northernexpanseaerial@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-228-4205'>701-228-4205<\/a><br><b>CITY/STATE: <\/b>Bottineau, ND<br><b>CHIEF PILOT: <\/b>Scott Robertson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>NORTHLAND AERIAL AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Dominic Carlson<br><b>EMAIL: <\/b><a href='mailto:dominic.carlson33@gmail.com'>dominic.carlson33@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-830-2458'>701-830-2458<\/a><br><b>CITY/STATE: <\/b>Edgeley, ND<br><b>CHIEF PILOT: <\/b>Dominic Carlson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>OLSEM AERIAL APPLICATION SVC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Benjamin Olsem<br><b>EMAIL: <\/b><a href='mailto:oaasllc@gmail.com'>oaasllc@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:507-360-1281'>507-360-1281<\/a><br><b>CITY/STATE: <\/b>Westbrook, MN<br><b>CHIEF PILOT: <\/b>Benjamin Olsem<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>PETERSON FARMS SEED<\/b><br><br><b>OWNER/OPERATOR: <\/b>Brandon Chappel<br><b>EMAIL: <\/b><a href='mailto:brandon.chappel@peterson.ag'>brandon.chappel@peterson.ag<\/a><br><b>PHONE: <\/b><a href='tel:701-793-9369'>701-793-9369<\/a><br><b>CITY/STATE: <\/b>Harwood, ND<br><b>CHIEF PILOT: <\/b>Brandon Chappel<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>PLU'S FLYING SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Darrin Pluhar<br><b>EMAIL: <\/b><a href='mailto:pluflyinc@mcn.net'>pluflyinc@mcn.net<\/a><br><b>PHONE: <\/b><a href='tel:406-775-6640'>406-775-6640<\/a><br><b>CITY/STATE: <\/b>Ekalaka, MT<br><b>CHIEF PILOT: <\/b>Darrin Pluhar<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>PREMIER AG PRODUCTS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Matt Jorissen<br><b>EMAIL: <\/b><a href='mailto:matt.jorissen1@gmail.com'>matt.jorissen1@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-840-8540'>701-840-8540<\/a><br><b>CITY/STATE: <\/b>Rogers, ND<br><b>CHIEF PILOT: <\/b>Matt Jorissen<br><b>ADDL PILOTS: <\/b>Joshua Brouse<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>PRO AG SOLUTIONS LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Cory Palm<br><b>EMAIL: <\/b><a href='mailto:proagsolutionsnd@gmail.com'>proagsolutionsnd@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-516-4660'>701-516-4660<\/a><br><b>CITY/STATE: <\/b>Bismarck, ND<br><b>CHIEF PILOT: <\/b>Cory Palm<br><b>ADDL PILOTS: <\/b>Nicole Doheny, Kolten Ohnell, Jamison Mutschler<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>ROBERTS AG AIR<\/b><br><br><b>OWNER/OPERATOR: <\/b>Blane Robert<br><b>EMAIL: <\/b><a href='mailto:agair@drtel.net'>agair@drtel.net<\/a><br><b>PHONE: <\/b><a href='tel:701-320-4189'>701-320-4189<\/a><br><b>CITY/STATE: <\/b>Lamoure, ND<br><b>CHIEF PILOT: <\/b>Blane Robert<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>RUBBERT AERIAL INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Chris Zimmer<br><b>EMAIL: <\/b><a href='mailto:zimmer_8@hotmail.com'>zimmer_8@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-272-6322'>701-272-6322<\/a><br><b>CITY/STATE: <\/b>Upham, ND<br><b>CHIEF PILOT: <\/b>Chris Zimmer<br><b>ADDL PILOTS: <\/b>Jan Rubbert, Jordan Loewen, Bradley Berentson<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>RYANS AERIAL SERVICES LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Stephan<br><b>EMAIL: <\/b><a href='mailto:rasllc2010@gmail.com'>rasllc2010@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-263-5580'>701-263-5580<\/a><br><b>CITY/STATE: <\/b>Lansford, ND<br><b>CHIEF PILOT: <\/b>Ryan Stephan<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>SCHNEIDER AERIAL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Steve Schneider<br><b>EMAIL: <\/b><a href='mailto:schneideraerial@gondtc.com'>schneideraerial@gondtc.com<\/a><br><b>PHONE: <\/b><a href='tel:701-208-1630'>701-208-1630<\/a><br><b>CITY/STATE: <\/b>Rugby, ND<br><b>CHIEF PILOT: <\/b>Steve Schneider<br><b>ADDL PILOTS: <\/b>Rodney Erickson, Jaden Schneider, Kaelin Schneider<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SECKERSON AERIAL SPRAYING<\/b><br><br><b>OWNER/OPERATOR: <\/b>Corey Seckerson<br><b>EMAIL: <\/b><a href='mailto:cloudcover72@gmail.com'>cloudcover72@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-269-2992'>701-269-2992<\/a><br><b>CITY/STATE: <\/b>Jamestown, ND<br><b>CHIEF PILOT: <\/b>Corey Seckerson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SKY TRACTOR<\/b><br><br><b>OWNER/OPERATOR: <\/b>Travis Amb<br><b>EMAIL: <\/b><a href='mailto:travis.amb113@gmail.com'>travis.amb113@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-361-5695'>701-361-5695<\/a><br><b>CITY/STATE: <\/b>Hillsboro, ND<br><b>CHIEF PILOT: <\/b>Travis Amb<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SKYTECH AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Kyle Krueger<br><b>EMAIL: <\/b><a href='mailto:kyle@skytechag.com'>kyle@skytechag.com<\/a><br><b>PHONE: <\/b><a href='tel:701-240-3451'>701-240-3451<\/a><br><b>CITY/STATE: <\/b>Sawyer, ND<br><b>CHIEF PILOT: <\/b>Kyle Krueger<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>SOUTHWEST AERIAL LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Dan Swanson<br><b>EMAIL: <\/b><a href='mailto:swan10@ndsupernet.com'>swan10@ndsupernet.com<\/a><br><b>PHONE: <\/b><a href='tel:701-523-4845'>701-523-4845<\/a><br><b>CITY/STATE: <\/b>Bowman, ND<br><b>CHIEF PILOT: <\/b>Steve Iglehart<br><b>ADDL PILOTS: <\/b>Colt Rasmussen<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>SPOTTERS AERIAL AG LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Joshua Dipippo<br><b>EMAIL: <\/b><a href='mailto:mackenzie@spottersaa.com'>mackenzie@spottersaa.com<\/a><br><b>PHONE: <\/b><a href='tel:605-630-1044'>605-630-1044<\/a><br><b>CITY/STATE: <\/b>Killdeer, ND<br><b>CHIEF PILOT: <\/b>Joshua Dipippo<br><b>ADDL PILOTS: <\/b>Bryce Morgan<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>SPRAGUES AERIAL SPRAYING INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Robert Sprague<br><b>EMAIL: <\/b><a href='mailto:robertsprague@daktel.com'>robertsprague@daktel.com<\/a><br><b>PHONE: <\/b><a href='tel:701-320-2890'>701-320-2890<\/a><br><b>CITY/STATE: <\/b>Courtenay, ND<br><b>CHIEF PILOT: <\/b>Robert Sprague<br><b>ADDL PILOTS: <\/b>Ethan Sprague<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>TALL TOWERS AG SERVICE<\/b><br><br><b>OWNER/OPERATOR: <\/b>Toby Mcpherson<br><b>EMAIL: <\/b><a href='mailto:office@talltowersaviation.com'>office@talltowersaviation.com<\/a><br><b>PHONE: <\/b><a href='tel:701-668-2302'>701-668-2302<\/a><br><b>CITY/STATE: <\/b>Page, ND<br><b>CHIEF PILOT: <\/b>Toby Mcpherson<br><b>ADDL PILOTS: <\/b>Mike Schroeder, John Nienhuis<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>TLB AIR LLP<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Alme<br><b>EMAIL: <\/b><a href='mailto:ryanalme@msn.com'>ryanalme@msn.com<\/a><br><b>PHONE: <\/b><a href='tel:701-360-7926'>701-360-7926<\/a><br><b>CITY/STATE: <\/b>Grafton, ND<br><b>CHIEF PILOT: <\/b>Ryan Alme<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>VALKYRIE AG SERVICES<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jonathan Powell<br><b>EMAIL: <\/b><a href='mailto:jonpowell85@live.com'>jonpowell85@live.com<\/a><br><b>PHONE: <\/b><a href='tel:701-640-7999'>701-640-7999<\/a><br><b>CITY/STATE: <\/b>Scranton, ND<br><b>CHIEF PILOT: <\/b>Jonathan Powell<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>VALLEY SPRAYERS INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Jayse Wharam<br><b>EMAIL: <\/b><a href='mailto:jaysewharam@hotmail.com'>jaysewharam@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-331-0818'>701-331-0818<\/a><br><b>CITY/STATE: <\/b>Park River, ND<br><b>CHIEF PILOT: <\/b>Jayse Wharam<br><b>ADDL PILOTS: <\/b>Ty Schmitt<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>VECTOR DISEASE CNTL INTL<\/b><br><br><b>OWNER/OPERATOR: <\/b>Gary Simonton<br><b>EMAIL: <\/b><a href='mailto:aerialdivision@vdci.net'>aerialdivision@vdci.net<\/a><br><b>PHONE: <\/b><a href='tel:385-238-0093'>385-238-0093<\/a><br><b>CITY/STATE: <\/b>Little Rock, AR<br><b>CHIEF PILOT: <\/b>Rob Aslesen<br><b>ADDL PILOTS: <\/b>Jon Aslesen, Chandler Ladner<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WALHALLA AG SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>David Carignan<br><b>EMAIL: <\/b><a href='mailto:walhallaagservice@utma.com'>walhallaagservice@utma.com<\/a><br><b>PHONE: <\/b><a href='tel:701-549-3500'>701-549-3500<\/a><br><b>CITY/STATE: <\/b>Walhalla, ND<br><b>CHIEF PILOT: <\/b>David Carignan<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WALKERS LAWNCARE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Ryan Walker<br><b>EMAIL: <\/b><a href='mailto:walkerslawncare@hotmail.com'>walkerslawncare@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:218-779-2744'>218-779-2744<\/a><br><b>CITY/STATE: <\/b>Hillsboro, ND<br><b>CHIEF PILOT: <\/b>Ryan Walker<br><b>ADDL PILOTS: <\/b>Jordan Aviso, Eli Kueber<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>WILD AIR SERVICE LLC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Isaac Wilde<br><b>EMAIL: <\/b><a href='mailto:wildeairservice@gmail.com'>wildeairservice@gmail.com<\/a><br><b>PHONE: <\/b><a href='tel:605-860-8692'>605-860-8692<\/a><br><b>CITY/STATE: <\/b>Volga, SD<br><b>CHIEF PILOT: <\/b>Jordan Williams<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WILD RICE AIR AG INC<\/b><br><br><b>OWNER/OPERATOR: <\/b>Rodney Erickson<br><b>EMAIL: <\/b><a href='mailto:r2inc@hotmail.com'>r2inc@hotmail.com<\/a><br><b>PHONE: <\/b><a href='tel:701-367-5243'>701-367-5243<\/a><br><b>CITY/STATE: <\/b>Rutland, ND<br><b>CHIEF PILOT: <\/b>Rodney Erickson<br><b>ADDL PILOTS: <\/b>N/A<br><b>TYPE OF LICENSE: <\/b>Manned<br>","<b>WINFIELD UNITED<\/b><br><br><b>OWNER/OPERATOR: <\/b>Matthew Mittag<br><b>EMAIL: <\/b><a href='mailto:mmittag@landolakes.com'>mmittag@landolakes.com<\/a><br><b>PHONE: <\/b><a href='tel:701-970-9677'>701-970-9677<\/a><br><b>CITY/STATE: <\/b>Fargo, ND<br><b>CHIEF PILOT: <\/b>Alexander Curlee<br><b>ADDL PILOTS: <\/b>Dakota Wolfe<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>","<b>WINFIELD UNITED<\/b><br><br><b>OWNER/OPERATOR: <\/b>Alexis Dickson<br><b>EMAIL: <\/b><a href='mailto:adickson@landolakes.com'>adickson@landolakes.com<\/a><br><b>PHONE: <\/b><a href='tel:701-371-3684'>701-371-3684<\/a><br><b>CITY/STATE: <\/b>Galesburg, ND<br><b>CHIEF PILOT: <\/b>Alexis Dickson<br><b>ADDL PILOTS: <\/b>Troy Gullekson<br><b>TYPE OF LICENSE: <\/b>Unmanned<br>"],null,null,{"interactive":false,"permanent":false,"direction":"auto","opacity":1,"offset":[0,0],"textsize":"10px","textOnly":false,"className":"","sticky":true},null]},{"method":"addLegend","args":[{"colors":["#658849","#34499B"],"labels":["Manned","Unmanned"],"na_color":null,"na_label":"NA","opacity":0.5,"position":"topright","type":"factor","title":"ND Licensed Aerial Applicators<br>2026 Applicators as of May 19, 2026","extra":null,"layerId":null,"className":"info legend","group":null}]},{"method":"addLayersControl","args":[["Standard","Light"],["Manned","Unmanned"],{"collapsed":false,"autoZIndex":true,"position":"topright"}]},{"method":"addSearchOSM","args":[{"moveToLocation":true,"zoom":17,"container":"","minLength":1,"initial":true,"casesensitive":false,"autoType":true,"delayType":400,"tooltipLimit":-1,"tipAutoSubmit":true,"firstTipSubmit":false,"autoResize":true,"collapsed":true,"autoCollapse":false,"autoCollapseTime":1200,"textErr":"Location Not Found","textCancel":"Cancel","textPlaceholder":"Address Search...","position":"topleft","hideMarkerOnCollapse":false,"marker":{"animate":true,"circle":{"radius":5,"weight":5,"color":"#e03","stroke":true,"fill":true}}}]},{"method":"addScaleBar","args":[{"maxWidth":100,"metric":true,"imperial":true,"updateWhenIdle":true,"position":"bottomleft"}]}],"limits":{"lat":[34.77197969426671,48.92549062414044],"lng":[-104.7413293833176,-92.33300460068237]}},"evals":[],"jsHooks":{"render":[{"code":"function(el, x, data) {\n  return (\n    function(el, x) {\n      document.title = 'ND Licensed Aerial Applicators';\n    }\n  ).call(this.getMap(), el, x, data);\n}","data":null},{"code":"function(el, x, data) {\n  return (\n    function(el, x) {\n      // Prepend a title to the base layers section\n      $('.leaflet-control-layers-base').prepend('<label style=\"text-align:left; font-weight:bold\">Basemap<\/label>');\n      // Prepend a title to the overlay layers section\n      $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:left; font-weight:bold\">Data Layers<\/label>');\n    }\n  ).call(this.getMap(), el, x, data);\n}","data":null}]}}</script>
+<script type="application/htmlwidget-sizing" data-for="htmlwidget-44c21ae78d3bae65c887">{"viewer":{"width":"100%","height":"100vh","padding":0,"fill":false},"browser":{"width":"100%","height":"100vh","padding":0,"fill":false}}</script>
 </body>
 </html>
