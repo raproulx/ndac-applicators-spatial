@@ -286,7 +286,7 @@ if (nrow(dat_new) > 0) {
       // Prepend a title to the base layers section
       $('.leaflet-control-layers-base').prepend('<label style=\"text-align:left; font-weight:bold\">Basemap</label>');
       // Prepend a title to the overlay layers section
-      $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:left; font-weight:bold\">Data Layers</label>');
+      $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:left; font-weight:bold\">Applicators</label>');
     }
   "
       ),
