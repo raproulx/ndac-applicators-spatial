@@ -15,6 +15,35 @@ conflicted::conflicts_prefer(dplyr::filter)
 source("./fun/read_ndac_directory.R")
 ndac_url <- "https://docs.google.com/spreadsheets/d/e/2PACX-1vSVKqNEfTonjBJmfEtT6c2md4W0jXvJZ6vQPVEBBSIAOEAXeKvhw5T_pMJC1jNXK6hxZcpAzxeeGvpp/pubhtml"
 
+# create helper functions -------------------------------------------------
+add_google_analytics <- function(html_file, measurement_id) {
+  ga_script <- sprintf(
+    '
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=%s"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag("js", new Date());
+  gtag("config", "%s");
+</script>',
+    measurement_id,
+    measurement_id
+  )
+
+  html_content <- readLines(html_file, warn = FALSE)
+  html_text <- paste(html_content, collapse = "\n")
+
+  modified_html <- sub(
+    pattern = "(<head[^>]*>)",
+    replacement = paste0("\\1", ga_script),
+    x = html_text
+  )
+
+  writeLines(modified_html, html_file)
+  message("Google Analytics tag inserted into: ", html_file)
+}
+
 # read NDAC tabular directory ---------------------------------------------
 dat_ndac <- read_ndac_directory(
   input = ndac_url
@@ -71,6 +100,8 @@ if (nrow(dat_new) > 0) {
       title = "NDAC Directory geocoding error!"
     )
   }
+} else {
+  dat_geo_new_jittered <- NULL
 }
 
 # rewrite all geocoded entries to geojson -------------------------------
@@ -181,7 +212,7 @@ m <- leaflet(
     )
   )
 
-m
+# m
 
 # write Leaflet map to HTML -----------------------------------------------
 saveWidget(
@@ -266,4 +297,11 @@ saveWidget(
   "
     ),
   file = "index.html"
+)
+
+
+# append Google Analytics to HTML -----------------------------------------
+add_google_analytics(
+  "index.html",
+  measurement_id = Sys.getenv("NDACMAP_GA_MEASUREMENT_ID")
 )
