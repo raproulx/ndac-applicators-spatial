@@ -1,7 +1,7 @@
 library(tidyverse)
 library(rvest)
 library(sf)
-library(nanoparquet)
+# library(nanoparquet)
 library(tidygeocoder)
 library(fs)
 library(pushoverr)
@@ -35,9 +35,9 @@ title_ndac <- str_c(
   str_replace(" : ", "<br>")
 
 # read existing georeferenced directory -----------------------------------
-dat_geo_saved <- read_parquet("results/ndac-directory-georeferenced.parquet")
+dat_geo_saved <- read_sf("results/ndac-directory-georeferenced.geojson")
 
-# geocode new directory entries -------------------------------------------
+# geocode new directory entries and alert to any errors -------------------
 dat_new <- dat_ndac |>
   anti_join(
     dat_geo_saved |>
@@ -47,12 +47,14 @@ dat_new <- dat_ndac |>
 if (nrow(dat_new) > 0) {
   dat_geo_new <- dat_new |>
     geocode(city = CITY, state = STATE, method = "osm")
-}
 
-if (nrow(dat_new) > 0) {
-  # identify and alert georeferencing errors --------------------------------
   dat_geo_errors <- dat_geo_new |>
     filter(is.na(lat) | is.na(long))
+
+  dat_geo_new_jittered <- dat_geo_new |>
+    filter_out(is.na(lat) | is.na(long)) |>
+    st_as_sf(coords = c("long", "lat"), crs = 4326) |>
+    st_jitter(factor = 0.004)
 
   if (nrow(dat_geo_errors) > 0) {
     con <- textConnection("msg", open = "w")
@@ -69,97 +71,71 @@ if (nrow(dat_new) > 0) {
       title = "NDAC Directory geocoding error!"
     )
   }
+}
 
-  # write all geocoded entries to parquet ----------------------------------
-  write_parquet(
-    dat_geo_saved |>
-      inner_join(
-        dat_ndac |>
-          select(`BUSINESS NAME`, `OWNER/OPERATOR`)
-      ) |>
-      bind_rows(
-        dat_geo_new |>
-          filter_out(is.na(lat) | is.na(long))
-      ) |>
-      arrange(`BUSINESS NAME`),
-    "results/ndac-directory-georeferenced.parquet"
+# rewrite all geocoded entries to geojson -------------------------------
+rbind(
+  dat_geo_saved |>
+    inner_join(
+      dat_ndac |>
+        select(`BUSINESS NAME`, `OWNER/OPERATOR`)
+    ),
+  dat_geo_new_jittered
+) |>
+  arrange(`BUSINESS NAME`) |>
+  write_sf(
+    "results/ndac-directory-georeferenced.geojson",
+    delete_dsn = TRUE
   )
 
-  # create Leaflet map ------------------------------------------------------
-  dat_leaflet <- read_parquet("results/ndac-directory-georeferenced.parquet") |>
-    arrange(`BUSINESS NAME`) |>
-    filter_out(`TYPE OF LICENSE` == "PRIVATE ONLY") |>
-    mutate(across(
-      c(
-        `OWNER/OPERATOR`,
-        CITY,
-        `CHIEF PILOT (RESPONSIBLE FOR ALL PILOTS)`,
-        `ADDL PILOTS`,
-        `TYPE OF LICENSE`
-      ),
-      ~ str_to_title(.x)
-    )) |>
-    mutate(
-      `ADDL PILOTS` = if_else(
-        `ADDL PILOTS` == "None Listed",
-        "N/A",
-        `ADDL PILOTS`
-      )
+# create Leaflet map ------------------------------------------------------
+dat_leaflet <- read_sf("results/ndac-directory-georeferenced.geojson") |>
+  arrange(`BUSINESS NAME`) |>
+  filter_out(`TYPE OF LICENSE` == "PRIVATE ONLY") |>
+  mutate(across(
+    c(
+      `OWNER/OPERATOR`,
+      CITY,
+      `CHIEF PILOT (RESPONSIBLE FOR ALL PILOTS)`,
+      `ADDL PILOTS`,
+      `TYPE OF LICENSE`
+    ),
+    ~ str_to_title(.x)
+  )) |>
+  mutate(
+    `ADDL PILOTS` = if_else(
+      `ADDL PILOTS` == "None Listed",
+      "N/A",
+      `ADDL PILOTS`
     )
+  )
 
-  ndac_entries <- dat_leaflet |>
-    st_as_sf(coords = c("long", "lat"), crs = 4326) |>
-    st_jitter(factor = 0.004)
+pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
 
-  pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
-
-  #   tag.map.title <- tags$style(HTML(
-  #     "
-  #   .leaflet-control.map-title {
-  #     transform: translate(-50%,-95%);
-  #     position: fixed !important;
-  #     left: 50%;
-  #     text-align: center;
-  #     padding-left: 10px;
-  #     padding-right: 10px;
-  #     color: #555;
-  #     background: rgba(255,255,255,0.75);
-  #     font-family: Helvetica Neue, Arial, Helvetica, sans-serif;
-  #     font-weight: bold;
-  #     font-size: 11px;
-  #   }
-  # "
-  #   ))
-  #
-  #   title <- tags$div(
-  #     tag.map.title,
-  #     HTML("*locations are approximate to maintain privacy*")
-  #   )
-
-  m <- leaflet(
-    data = ndac_entries,
-    width = "100%",
-    height = "100vh",
-    options = leafletOptions(
-      minZoom = 5,
-      maxZoom = 11
-    )
+m <- leaflet(
+  data = dat_leaflet,
+  width = "100%",
+  height = "100vh",
+  options = leafletOptions(
+    minZoom = 5,
+    maxZoom = 11
+  )
+) |>
+  addTiles(
+    urlTemplate = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
+    attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+    group = "Standard"
   ) |>
-    addTiles(
-      urlTemplate = "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-      attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      group = "Standard"
-    ) |>
-    addProviderTiles(
-      providers$CartoDB.Positron,
-      group = "Light"
-    ) |>
-    addCircleMarkers(
-      data = ndac_entries,
-      group = ~`TYPE OF LICENSE`,
-      color = ~ pal(`TYPE OF LICENSE`),
-      # fmt: skip
-      popup = ~ str_c(
+  addProviderTiles(
+    providers$CartoDB.Positron,
+    group = "Light"
+  ) |>
+  addCircleMarkers(
+    data = dat_leaflet,
+    group = ~`TYPE OF LICENSE`,
+    color = ~ pal(`TYPE OF LICENSE`),
+    # fmt: skip
+    popup = ~ str_c(
       "<b>", `BUSINESS NAME`, "</b><br><br>",
       "<b>OWNER/OPERATOR: </b>", `OWNER/OPERATOR`, "<br>",
       "<b>EMAIL: </b><a href='mailto:", `EMAIL`, "'>", `EMAIL`, "</a><br>",
@@ -169,51 +145,50 @@ if (nrow(dat_new) > 0) {
       "<b>ADDL PILOTS: </b>", `ADDL PILOTS`, "<br>",
       "<b>TYPE OF LICENSE: </b>", `TYPE OF LICENSE`, "<br>"
     ),
-      clusterOptions = NULL
-    ) |>
-    addLegend(
-      position = "topright",
-      pal = pal,
-      values = ~`TYPE OF LICENSE`,
-      title = title_ndac
-    ) |>
-    addLayersControl(
-      baseGroups = c("Standard", "Light"),
-      overlayGroups = c("Manned", "Unmanned"),
-      options = layersControlOptions(collapsed = FALSE)
-    ) |>
-    addSearchOSM(searchOptions(
-      marker = list(
-        icon = NULL,
-        animate = TRUE,
-        circle = list(
-          radius = 5,
-          weight = 5,
-          color = "#e03",
-          stroke = TRUE,
-          fill = TRUE
-        )
-      ),
-      textPlaceholder = "Address Search...",
-    )) |>
-    addScaleBar(
-      position = "bottomleft",
-      options = scaleBarOptions(
-        maxWidth = 100,
-        imperial = TRUE,
-        updateWhenIdle = TRUE
+    clusterOptions = NULL
+  ) |>
+  addLegend(
+    position = "topright",
+    pal = pal,
+    values = ~`TYPE OF LICENSE`,
+    title = title_ndac
+  ) |>
+  addLayersControl(
+    baseGroups = c("Standard", "Light"),
+    overlayGroups = c("Manned", "Unmanned"),
+    options = layersControlOptions(collapsed = FALSE)
+  ) |>
+  addSearchOSM(searchOptions(
+    marker = list(
+      icon = NULL,
+      animate = TRUE,
+      circle = list(
+        radius = 5,
+        weight = 5,
+        color = "#e03",
+        stroke = TRUE,
+        fill = TRUE
       )
-    ) #|>
-  # addControl(title, position = "bottomright", className = "map-title")
+    ),
+    textPlaceholder = "Address Search...",
+  )) |>
+  addScaleBar(
+    position = "bottomleft",
+    options = scaleBarOptions(
+      maxWidth = 100,
+      imperial = TRUE,
+      updateWhenIdle = TRUE
+    )
+  )
 
-  m
+m
 
-  # write Leaflet map to HTML -----------------------------------------------
-  saveWidget(
-    prependContent(
-      m,
-      tags$style(HTML(
-        "
+# write Leaflet map to HTML -----------------------------------------------
+saveWidget(
+  prependContent(
+    m,
+    tags$style(HTML(
+      "
       .map-caption {
         position: fixed;
         bottom: 10px;
@@ -259,29 +234,29 @@ if (nrow(dat_new) > 0) {
         .leaflet-popup-content a { font-size: 16px; }
       }
     "
-      )),
-      tags$div(
-        class = "map-caption",
-        "*locations are approximate to maintain privacy*"
-      ),
-      tags$head(tags$link(
-        rel = "stylesheet",
-        href = "https://unpkg.com"
-      )),
-      tags$head(tags$meta(
-        name = "viewport",
-        content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
-      ))
-    ) |>
-      onRender(
-        "
+    )),
+    tags$div(
+      class = "map-caption",
+      "*locations are approximate to maintain privacy*"
+    ),
+    tags$head(tags$link(
+      rel = "stylesheet",
+      href = "https://unpkg.com"
+    )),
+    tags$head(tags$meta(
+      name = "viewport",
+      content = "width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    ))
+  ) |>
+    onRender(
+      "
     function(el, x) {
       document.title = 'ND Licensed Aerial Applicators';
     }
   "
-      ) |>
-      onRender(
-        "
+    ) |>
+    onRender(
+      "
     function(el, x) {
       // Prepend a title to the base layers section
       $('.leaflet-control-layers-base').prepend('<label style=\"text-align:left; font-weight:bold\">Basemap</label>');
@@ -289,7 +264,6 @@ if (nrow(dat_new) > 0) {
       $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:left; font-weight:bold\">Applicators</label>');
     }
   "
-      ),
-    file = "index.html"
-  )
-}
+    ),
+  file = "index.html"
+)
