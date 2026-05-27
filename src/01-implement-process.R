@@ -198,8 +198,8 @@ rbind(
   },
   dat_geo_new
 ) |>
-  arrange(`BUSINESS NAME`) |>
-  filter_out(is.na(lat) | is.na(long)) |>
+  arrange(`BUSINESS NAME`) %>%
+  filter_out(st_is_empty(.)) |>
   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
   write_sf(
     "results/ndac-directory-georeferenced.geojson",
