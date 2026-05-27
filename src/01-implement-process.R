@@ -249,7 +249,7 @@ m <- leaflet(
   height = "100vh",
   options = leafletOptions(
     minZoom = 5,
-    maxZoom = 11
+    maxZoom = 12
   )
 ) |>
   addTiles(
