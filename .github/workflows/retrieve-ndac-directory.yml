@@ -1,0 +1,69 @@
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 6 * * *'  # Runs daily at 6:15 UTC (12:15 CST)
+
+name: Retrieve ND Aeronautics Commission Directory
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    
+    env:
+      NDACMAP_GA_MEASUREMENT_ID: ${{ secrets.NDACMAP_GA_MEASUREMENT_ID }}
+      PUSHOVER_APP: ${{ secrets.PUSHOVER_APP }}
+      PUSHOVER_USER: ${{ secrets.PUSHOVER_USER }}
+      
+    permissions:
+      contents: write
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Update list of packages
+        run: sudo apt-get update
+
+      - name: Install ImageMagick library
+        run: sudo apt-get install libmagick++-dev
+        
+      - name: Install UDUnits library
+        run: sudo apt-get install libudunits2-dev
+
+      - name: Install PROJ library
+        run: sudo apt-get install libproj-dev proj-data proj-bin
+
+      - name: Install GEOS library
+        run: sudo apt-get install libgeos-dev libgeos-c1v5
+
+      - name: Install GDAL library
+        run: sudo apt-get install libgdal-dev
+
+      - name: Install SQLite 3
+        run: sudo apt-get install sqlite3 libsqlite3-dev 
+
+      - name: Install R
+        uses: r-lib/actions/setup-r@v2
+        with:
+          r-version: '4.4.3'
+          rtools-version: '44'
+
+      - name: Install R Dependencies
+        uses: r-lib/actions/setup-renv@v2
+        with:
+          cache-version: 1
+          
+      - name: Set execution permissions for R script
+        run: chmod +x src/01-implement-process.R
+  
+      - name: Run R script
+        run: Rscript src/01-implement-process.R
+     
+      - name: Push a commit
+        env:
+          NDAC_DAILY_REFRESH_PAT: ${{secrets.NDAC_DAILY_REFRESH_PAT}}
+        run: |
+          git config --global user.name "raproulx"
+          git config --global user.email "150395800+raproulx@users.noreply.github.com"
+          git add .
+          git commit -m "NDAC data retrival and map generation"
+          git push https://${{secrets.NDAC_DAILY_REFRESH_PAT}}@github.com/${{ github.repository }}.git HEAD:main
