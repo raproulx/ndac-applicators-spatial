@@ -3,6 +3,7 @@ library(rvest)
 library(sf)
 # library(nanoparquet)
 library(tidygeocoder)
+library(packcircles)
 library(fs)
 library(pushoverr)
 library(leaflet)
@@ -16,6 +17,85 @@ source("./fun/read_ndac_directory.R")
 ndac_url <- "https://docs.google.com/spreadsheets/d/e/2PACX-1vSVKqNEfTonjBJmfEtT6c2md4W0jXvJZ6vQPVEBBSIAOEAXeKvhw5T_pMJC1jNXK6hxZcpAzxeeGvpp/pubhtml"
 
 # create helper functions -------------------------------------------------
+# from Claude Sonnet 4.6
+spiral_jitter <- function(pts, radius, epsg, rings = 3) {
+  original_crs <- st_crs(pts)
+
+  # Store original coordinates as columns before transforming
+  orig_coords <- st_coordinates(pts)
+  pts$orig_x <- orig_coords[, "X"]
+  pts$orig_y <- orig_coords[, "Y"]
+
+  # Project to working CRS
+  pts_proj <- st_transform(pts, epsg)
+  coords <- st_coordinates(pts_proj)
+
+  df <- cbind(st_drop_geometry(pts_proj), as.data.frame(coords))
+  golden_angle <- pi * (3 - sqrt(5))
+
+  df <- df %>%
+    mutate(gid = paste(round(X, 6), round(Y, 6), sep = "_")) %>%
+    group_by(gid) %>%
+    mutate(rank = row_number()) %>%
+    ungroup() %>%
+    mutate(
+      r = ifelse(rank == 1, 0, radius * sqrt(rank - 1) / sqrt(rings * 6)),
+      theta = (rank - 1) * golden_angle,
+      X = X + r * cos(theta),
+      Y = Y + r * sin(theta)
+    ) %>%
+    select(-gid, -rank, -r, -theta)
+
+  result_proj <- st_as_sf(df, coords = c("X", "Y"), crs = epsg)
+
+  # Transform back to original CRS
+  st_transform(result_proj, original_crs)
+}
+
+# from Claude Sonnet 4.6
+pack_points <- function(pts, min_dist, epsg, max_iter = 500, seed = 42) {
+  original_crs <- st_crs(pts)
+
+  # Store original coordinates as columns before transforming
+  orig_coords <- st_coordinates(pts)
+  pts$orig_x <- orig_coords[, "X"]
+  pts$orig_y <- orig_coords[, "Y"]
+
+  # Project to working CRS
+  pts_proj <- st_transform(pts, epsg)
+  coords <- st_coordinates(pts_proj)
+  radius <- min_dist / 2
+
+  # Pre-jitter coordinates by a fraction of the radius to seed 2D repulsion
+  set.seed(seed)
+  coords_jittered <- coords
+  coords_jittered[, "X"] <- coords[, "X"] +
+    runif(nrow(coords), -radius * 0.1, radius * 0.1)
+  coords_jittered[, "Y"] <- coords[, "Y"] +
+    runif(nrow(coords), -radius * 0.1, radius * 0.1)
+
+  layout <- circleRepelLayout(
+    cbind(coords_jittered, rep(radius, nrow(coords_jittered))),
+    xysizecols = 1:3,
+    sizetype = "radius",
+    maxiter = max_iter,
+    wrap = FALSE
+  )
+
+  new_coords <- layout$layout[, c("x", "y")]
+
+  # Rebuild sf object with updated coordinates, keeping all columns
+  result_proj <- st_as_sf(
+    cbind(st_drop_geometry(pts_proj), new_coords),
+    coords = c("x", "y"),
+    crs = epsg
+  )
+
+  # Transform back to original CRS
+  st_transform(result_proj, original_crs)
+}
+
+# from Claude Sonnet 4.6
 add_google_analytics <- function(html_file, measurement_id) {
   ga_script <- sprintf(
     '
@@ -88,10 +168,20 @@ if (nrow(dat_new) > 0) {
   dat_geo_errors <- dat_geo_new |>
     filter(is.na(lat) | is.na(long))
 
-  dat_geo_new_jittered <- dat_geo_new |>
+  # dat_geo_new_jittered <- dat_geo_new |>
+  #   filter_out(is.na(lat) | is.na(long)) |>
+  #   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
+  #   st_jitter(factor = 0.004)
+  #
+  # dat_geo_new_spiraljittered <- dat_geo_new |>
+  #   filter_out(is.na(lat) | is.na(long)) |>
+  #   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
+  #   spiral_jitter(radius = 3500, epsg = 3857, rings = 1)
+
+  dat_geo_new_packed <- dat_geo_new |>
     filter_out(is.na(lat) | is.na(long)) |>
     st_as_sf(coords = c("long", "lat"), crs = 4326) |>
-    st_jitter(factor = 0.004)
+    pack_points(min_dist = 3500, epsg = 3857)
 
   if (nrow(dat_geo_errors) > 0) {
     con <- textConnection("msg", open = "w")
@@ -109,12 +199,11 @@ if (nrow(dat_new) > 0) {
     )
   }
 } else {
-  dat_geo_new_jittered <- NULL
+  dat_geo_new_packed <- NULL
 }
 
 # rewrite all geocoded entries to geojson -------------------------------
 rbind(
-  dat_geo_new_jittered
   if (!is.null(dat_geo_saved)) {
     dat_geo_saved |>
       inner_join(
@@ -122,6 +211,7 @@ rbind(
           select(`BUSINESS NAME`, `OWNER/OPERATOR`)
       )
   },
+  dat_geo_new_packed
 ) |>
   arrange(`BUSINESS NAME`) |>
   write_sf(
