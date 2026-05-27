@@ -1,8 +1,9 @@
 on:
   workflow_dispatch:
   schedule:
-    - cron: '15 6 * * *'  # Runs daily at 6:15 UTC (12:15 CST)
-
+    - cron: '24 8,12,17 * * 1-5'
+      timezone: 'America/Chicago'
+    
 name: Retrieve ND Aeronautics Commission Directory
 
 jobs:
