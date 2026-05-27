@@ -64,14 +64,22 @@ title_ndac <- str_c(
   str_replace(" : ", "<br>")
 
 # read existing georeferenced directory -----------------------------------
-dat_geo_saved <- read_sf("results/ndac-directory-georeferenced.geojson")
+dat_geo_saved <- if (
+  file_exists("results/ndac-directory-georeferenced.geojson")
+) {
+  read_sf("results/ndac-directory-georeferenced.geojson")
+} else (NULL)
 
 # geocode new directory entries and alert to any errors -------------------
-dat_new <- dat_ndac |>
-  anti_join(
-    dat_geo_saved |>
-      select(`BUSINESS NAME`, `OWNER/OPERATOR`)
-  )
+dat_new <- if (is.null(dat_geo_saved)) {
+  dat_ndac
+} else {
+  dat_ndac |>
+    anti_join(
+      dat_geo_saved |>
+        select(`BUSINESS NAME`, `OWNER/OPERATOR`)
+    )
+}
 
 if (nrow(dat_new) > 0) {
   dat_geo_new <- dat_new |>
