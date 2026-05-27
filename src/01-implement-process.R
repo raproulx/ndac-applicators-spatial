@@ -168,21 +168,6 @@ if (nrow(dat_new) > 0) {
   dat_geo_errors <- dat_geo_new |>
     filter(is.na(lat) | is.na(long))
 
-  # dat_geo_new_jittered <- dat_geo_new |>
-  #   filter_out(is.na(lat) | is.na(long)) |>
-  #   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
-  #   st_jitter(factor = 0.004)
-  #
-  # dat_geo_new_spiraljittered <- dat_geo_new |>
-  #   filter_out(is.na(lat) | is.na(long)) |>
-  #   st_as_sf(coords = c("long", "lat"), crs = 4326) |>
-  #   spiral_jitter(radius = 3500, epsg = 3857, rings = 1)
-
-  dat_geo_new_packed <- dat_geo_new |>
-    filter_out(is.na(lat) | is.na(long)) |>
-    st_as_sf(coords = c("long", "lat"), crs = 4326) |>
-    pack_points(min_dist = 3500, epsg = 3857)
-
   if (nrow(dat_geo_errors) > 0) {
     con <- textConnection("msg", open = "w")
 
@@ -199,7 +184,7 @@ if (nrow(dat_new) > 0) {
     )
   }
 } else {
-  dat_geo_new_packed <- NULL
+  dat_geo_new <- NULL
 }
 
 # rewrite all geocoded entries to geojson -------------------------------
@@ -211,9 +196,11 @@ rbind(
           select(`BUSINESS NAME`, `OWNER/OPERATOR`)
       )
   },
-  dat_geo_new_packed
+  dat_geo_new
 ) |>
   arrange(`BUSINESS NAME`) |>
+  filter_out(is.na(lat) | is.na(long)) |>
+  st_as_sf(coords = c("long", "lat"), crs = 4326) |>
   write_sf(
     "results/ndac-directory-georeferenced.geojson",
     delete_dsn = TRUE
@@ -239,7 +226,10 @@ dat_leaflet <- read_sf("results/ndac-directory-georeferenced.geojson") |>
       "N/A",
       `ADDL PILOTS`
     )
-  )
+  ) |>
+  pack_points(min_dist = 3500, epsg = 3857)
+# st_jitter(factor = 0.004)
+# spiral_jitter(radius = 3500, epsg = 3857, rings = 1)
 
 pal <- colorFactor(c("#658849", "#34499B"), domain = c("Manned", "Unmanned"))
 
