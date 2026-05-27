@@ -196,11 +196,13 @@ rbind(
           select(`BUSINESS NAME`, `OWNER/OPERATOR`)
       )
   },
-  dat_geo_new
+  if (!is.null(dat_geo_new)) {
+    dat_geo_new |>
+      st_as_sf(coords = c("long", "lat"), crs = 4326)
+  }
 ) |>
   arrange(`BUSINESS NAME`) %>%
   filter_out(st_is_empty(.)) |>
-  st_as_sf(coords = c("long", "lat"), crs = 4326) |>
   write_sf(
     "results/ndac-directory-georeferenced.geojson",
     delete_dsn = TRUE
