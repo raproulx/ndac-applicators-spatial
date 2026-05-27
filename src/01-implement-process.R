@@ -114,12 +114,14 @@ if (nrow(dat_new) > 0) {
 
 # rewrite all geocoded entries to geojson -------------------------------
 rbind(
-  dat_geo_saved |>
-    inner_join(
-      dat_ndac |>
-        select(`BUSINESS NAME`, `OWNER/OPERATOR`)
-    ),
   dat_geo_new_jittered
+  if (!is.null(dat_geo_saved)) {
+    dat_geo_saved |>
+      inner_join(
+        dat_ndac |>
+          select(`BUSINESS NAME`, `OWNER/OPERATOR`)
+      )
+  },
 ) |>
   arrange(`BUSINESS NAME`) |>
   write_sf(
