@@ -69,5 +69,5 @@ jobs:
           git config --global user.name "raproulx"
           git config --global user.email "150395800+raproulx@users.noreply.github.com"
           git add .
-          git commit -m "NDAC data retrival and map generation"
+          git diff-index --quiet HEAD || git commit -m "NDAC data retrival and map generation"
           git push https://${{secrets.NDAC_DAILY_REFRESH_PAT}}@github.com/${{ github.repository }}.git HEAD:main
