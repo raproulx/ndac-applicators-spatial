@@ -418,9 +418,14 @@ saveWidget(
         if (isTouchPrimary) {
           layersControl.classList.remove('leaflet-control-layers-expanded');
         } else {
-          var clone = layersControl.cloneNode(true);
-          layersControl.parentNode.replaceChild(clone, layersControl);
-          clone.classList.add('leaflet-control-layers-expanded');
+          // Keep expanded class using a MutationObserver
+          layersControl.classList.add('leaflet-control-layers-expanded');
+          var observer = new MutationObserver(function() {
+            if (!layersControl.classList.contains('leaflet-control-layers-expanded')) {
+              layersControl.classList.add('leaflet-control-layers-expanded');
+            }
+          });
+          observer.observe(layersControl, { attributes: true, attributeFilter: ['class'] });
         }
       }
     }, 50);
