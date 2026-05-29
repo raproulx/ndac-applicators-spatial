@@ -409,13 +409,17 @@ saveWidget(
       });
     }
     
-    // Collapse layers control on mobile
-    if (isTouchPrimary) {
+    // Collapse layers control on mobile only
+    setTimeout(function() {
       var layersControl = document.querySelector('.leaflet-control-layers');
       if (layersControl) {
-        layersControl.classList.remove('leaflet-control-layers-expanded');
+        if (isTouchPrimary) {
+          layersControl.classList.remove('leaflet-control-layers-expanded');
+        } else {
+          layersControl.classList.add('leaflet-control-layers-expanded');
+        }
       }
-    }
+    }, 100);
   }
 "
     ),
