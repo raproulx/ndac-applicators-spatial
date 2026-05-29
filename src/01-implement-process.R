@@ -391,6 +391,24 @@ saveWidget(
       $('.leaflet-control-layers-overlays').prepend('<label style=\"text-align:left; font-weight:bold\">Applicators</label>');
     }
   "
+    ) |>
+    onRender(
+      "
+  function(el, x) {
+    var supportsFullscreen = document.fullscreenEnabled || 
+                             document.webkitFullscreenEnabled;
+    var isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
+    
+    var btn = document.querySelector('.leaflet-control-fullscreen a');
+    if (btn && (!supportsFullscreen || isTouchPrimary)) {
+      btn.addEventListener('click', function(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        window.open(window.location.href, '_blank');
+      });
+    }
+  }
+"
     ),
   file = "index.html"
 )
