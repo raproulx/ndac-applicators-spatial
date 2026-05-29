@@ -270,6 +270,10 @@ m <- leaflet(
     ),
     clusterOptions = NULL
   ) |>
+  addFullscreenControl(
+    position = "topleft",
+    pseudoFullscreen = FALSE
+  ) |>
   addLegend(
     position = "topright",
     pal = pal,
