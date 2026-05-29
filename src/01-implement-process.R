@@ -399,7 +399,7 @@ saveWidget(
                              document.webkitFullscreenEnabled;
     var isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
     
-    // Fullscreen button behavior on mobile
+    // Fullscreen button behavior
     var btn = document.querySelector('.leaflet-control-fullscreen a');
     if (btn && (!supportsFullscreen || isTouchPrimary)) {
       btn.addEventListener('click', function(e) {
@@ -409,17 +409,21 @@ saveWidget(
       });
     }
     
-    // Collapse layers control on mobile only
-    setTimeout(function() {
+    // Poll until layers control is available in the DOM
+    var interval = setInterval(function() {
       var layersControl = document.querySelector('.leaflet-control-layers');
       if (layersControl) {
+        clearInterval(interval);
+        
         if (isTouchPrimary) {
           layersControl.classList.remove('leaflet-control-layers-expanded');
         } else {
-          layersControl.classList.add('leaflet-control-layers-expanded');
+          var clone = layersControl.cloneNode(true);
+          layersControl.parentNode.replaceChild(clone, layersControl);
+          clone.classList.add('leaflet-control-layers-expanded');
         }
       }
-    }, 100);
+    }, 50);
   }
 "
     ),
