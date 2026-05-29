@@ -399,6 +399,7 @@ saveWidget(
                              document.webkitFullscreenEnabled;
     var isTouchPrimary = window.matchMedia('(pointer: coarse)').matches;
     
+    // Fullscreen button behavior on mobile
     var btn = document.querySelector('.leaflet-control-fullscreen a');
     if (btn && (!supportsFullscreen || isTouchPrimary)) {
       btn.addEventListener('click', function(e) {
@@ -406,6 +407,14 @@ saveWidget(
         e.preventDefault();
         window.open(window.location.href, '_blank');
       });
+    }
+    
+    // Collapse layers control on mobile
+    if (isTouchPrimary) {
+      var layersControl = document.querySelector('.leaflet-control-layers');
+      if (layersControl) {
+        layersControl.classList.remove('leaflet-control-layers-expanded');
+      }
     }
   }
 "
