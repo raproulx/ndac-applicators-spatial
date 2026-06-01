@@ -416,14 +416,15 @@ saveWidget(
         clearInterval(interval);
         
         if (isTouchPrimary) {
-          // Keep collapsed on mobile
+          // Start collapsed
           layersControl.classList.remove('leaflet-control-layers-expanded');
-          var observer = new MutationObserver(function() {
-            if (layersControl.classList.contains('leaflet-control-layers-expanded')) {
+          
+          // Collapse when user clicks outside the layers control
+          document.addEventListener('click', function(e) {
+            if (!layersControl.contains(e.target)) {
               layersControl.classList.remove('leaflet-control-layers-expanded');
             }
           });
-          observer.observe(layersControl, { attributes: true, attributeFilter: ['class'] });
         } else {
           // Keep expanded on desktop
           layersControl.classList.add('leaflet-control-layers-expanded');
