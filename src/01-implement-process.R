@@ -416,9 +416,16 @@ saveWidget(
         clearInterval(interval);
         
         if (isTouchPrimary) {
+          // Keep collapsed on mobile
           layersControl.classList.remove('leaflet-control-layers-expanded');
+          var observer = new MutationObserver(function() {
+            if (layersControl.classList.contains('leaflet-control-layers-expanded')) {
+              layersControl.classList.remove('leaflet-control-layers-expanded');
+            }
+          });
+          observer.observe(layersControl, { attributes: true, attributeFilter: ['class'] });
         } else {
-          // Keep expanded class using a MutationObserver
+          // Keep expanded on desktop
           layersControl.classList.add('leaflet-control-layers-expanded');
           var observer = new MutationObserver(function() {
             if (!layersControl.classList.contains('leaflet-control-layers-expanded')) {
