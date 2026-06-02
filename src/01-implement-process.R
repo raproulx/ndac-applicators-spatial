@@ -298,6 +298,9 @@ m <- leaflet(
       )
     ),
     textPlaceholder = "Address Search...",
+    url = "https://nominatim.openstreetmap.org/search?format=json&countrycodes=us&q={s}",
+    propertyName = "display_name",
+    propertyLoc = c("lat", "lon")
   )) |>
   addScaleBar(
     position = "bottomleft",
