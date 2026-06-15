@@ -1,8 +1,11 @@
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '24 8,12,17 * * 1-5'
-      timezone: 'America/Chicago'
+  repository_dispatch:
+    types:
+      - cron-trigger
+#  schedule:
+#    - cron: '24 8,12,17 * * 1-5'
+#      timezone: 'America/Chicago'
     
 name: Retrieve ND Aeronautics Commission Directory
 
