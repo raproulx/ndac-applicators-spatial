@@ -1,11 +1,11 @@
-require(readr)
-require(fs)
-require(stringr)
-require(dplyr)
-
 read_ndac_directory <- function(
   input = NULL
 ) {
+  require(readr)
+  require(fs)
+  require(stringr)
+  require(dplyr)
+  require(readxl)
   if (is.null(input)) {
     stop("Must provide Google Sheets URL or path to Excel file")
   }
@@ -35,7 +35,11 @@ read_ndac_directory <- function(
     )
 
     dat <- read_csv(I(read_file(url))) |>
-      slice(-1) |>
+      mutate(
+        .rest_is_empty = rowSums(!is.na(across(-1)) & across(-1, ~ .x != "")) ==
+          0
+      ) |>
+      dplyr::filter(!.rest_is_empty) |>
       mutate(across(
         c(`BUSINESS NAME`, `ADDL PILOTS`),
         ~ str_replace_all(.x, "\n", ", ")
@@ -43,10 +47,11 @@ read_ndac_directory <- function(
       rename_with(
         ~ replace_values(
           .x,
-          "CITY                    STATE" ~ "CITY",
+          "CITY STATE" ~ "CITY",
           "...6" ~ "STATE"
         )
-      )
+      ) |>
+      select(-.rest_is_empty)
   }
 
   dat
