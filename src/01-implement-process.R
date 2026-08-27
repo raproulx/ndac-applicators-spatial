@@ -148,7 +148,9 @@ dat_geo_saved <- if (
   file_exists("results/ndac-directory-georeferenced.geojson")
 ) {
   read_sf("results/ndac-directory-georeferenced.geojson")
-} else (NULL)
+} else {
+  (NULL)
+}
 
 # geocode new directory entries and alert to any errors -------------------
 dat_new <- if (is.null(dat_geo_saved)) {
@@ -188,7 +190,7 @@ if (nrow(dat_new) > 0) {
 }
 
 # rewrite all geocoded entries to geojson -------------------------------
-rbind(
+bind_rows(
   if (!is.null(dat_geo_saved)) {
     dat_geo_saved |>
       inner_join(
