@@ -213,7 +213,7 @@ bind_rows(
 # create Leaflet map ------------------------------------------------------
 dat_leaflet <- read_sf("results/ndac-directory-georeferenced.geojson") |>
   arrange(`BUSINESS NAME`) |>
-  filter_out(`TYPE OF LICENSE` == "PRIVATE ONLY") |>
+  filter_out(`TYPE OF LICENSE` == "PRIVATE ONLY") |> # does not function without `TYPE OF LICENSE` column provided by NDAC
   mutate(across(
     c(
       `OWNER/OPERATOR`,
