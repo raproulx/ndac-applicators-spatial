@@ -251,8 +251,9 @@ m <- leaflet(
     attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     group = "Standard"
   ) |>
-  addProviderTiles(
-    providers$CartoDB.Positron,
+  addTiles(
+    urlTemplate = "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png?key=cb1_2ctv_1_54c90f2f5fa234cdcd126c30",
+    attribution = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
     group = "Light"
   ) |>
   addCircleMarkers(
