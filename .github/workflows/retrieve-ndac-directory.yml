@@ -11,7 +11,7 @@ name: Retrieve ND Aeronautics Commission Directory
 
 jobs:
   build-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     env:
       NDACMAP_GA_MEASUREMENT_ID: ${{ secrets.NDACMAP_GA_MEASUREMENT_ID }}
